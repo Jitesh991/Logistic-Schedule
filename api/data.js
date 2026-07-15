@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { put, list, del, head } = require('@vercel/blob');
 
 const SECRET     = process.env.JWT_SECRET || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
-const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers'];
+const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays'];
 
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
