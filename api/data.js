@@ -43,6 +43,7 @@ async function writeCol(col, data) {
   if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
   await put(`sii/${col}.json`, JSON.stringify(data), {
     addRandomSuffix: false,
+    access: 'private',
     contentType: 'application/json'
   });
 }
