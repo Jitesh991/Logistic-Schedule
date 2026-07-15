@@ -56,7 +56,7 @@ async function saveUsers(users) {
   const { blobs } = await list({ prefix: BLOB_PREFIX });
   if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
   await put(BLOB_PREFIX, JSON.stringify(users), {
-    access: 'public',
+    access: 'private',
     addRandomSuffix: false,
     contentType: 'application/json'
   });
