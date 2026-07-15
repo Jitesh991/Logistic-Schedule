@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -16,30 +17,68 @@
 }
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
+/* ── Login Screen ── */
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1a1e2e 0%,#2563eb 100%);
+  z-index:9000;display:flex;align-items:center;justify-content:center}
+#login-screen.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:360px;max-width:94vw;
+  box-shadow:0 24px 80px rgba(0,0,0,.35)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .ll-icon{width:56px;height:56px;background:var(--accent);border-radius:14px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px}
+.login-logo h1{font-size:20px;font-weight:800;letter-spacing:-.4px}
+.login-logo p{font-size:12px;color:var(--muted);margin-top:3px}
+.login-err{background:var(--red-lt);color:var(--red);border:1px solid #fecaca;border-radius:8px;
+  padding:10px 14px;font-size:13px;font-weight:600;margin-bottom:14px;display:none}
+.login-err.show{display:block}
+.login-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:9px;
+  font-size:14px;font-weight:700;cursor:pointer;transition:background .12s;margin-top:4px}
+.login-btn:hover{background:#1d4ed8}
+.login-btn:disabled{opacity:.6;cursor:not-allowed}
+
 /* ── Topbar ── */
-.topbar{background:var(--text);color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.topbar{background:var(--text);color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:200}
 .brand{display:flex;align-items:center;gap:10px}
-.bl{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.bl{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:15px}
 .bn{font-size:15px;font-weight:700}.bs{font-size:11px;color:#8b92b0}
-.topbar-right{display:flex;align-items:center;gap:8px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.user-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);
+  border-radius:20px;padding:4px 12px 4px 8px}
+.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.user-pill .uname{font-size:12px;font-weight:700}
+.role-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;
+  background:rgba(255,255,255,.15);letter-spacing:.3px}
+.role-badge.admin{background:#7c3aed}
+.role-badge.editor{background:#0891b2}
+.role-badge.viewer{background:#374151}
 
 /* ── Layout ── */
 .layout{display:grid;grid-template-columns:210px 1fr;min-height:calc(100vh - 52px)}
-aside{background:var(--surface);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto}
-.ns{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 8px 4px;margin-top:6px}
-.ni{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text);border:none;background:none;width:100%;text-align:left;transition:background .12s}
+aside{background:var(--surface);border-right:1px solid var(--border);padding:14px 10px;
+  display:flex;flex-direction:column;gap:2px;position:sticky;top:52px;
+  height:calc(100vh - 52px);overflow-y:auto}
+.ns{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--muted);padding:10px 8px 4px;margin-top:6px}
+.ni{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;
+  font-size:13px;font-weight:500;color:var(--text);border:none;background:none;
+  width:100%;text-align:left;transition:background .12s}
 .ni:hover{background:var(--bg)}.ni.active{background:var(--alt);color:var(--accent);font-weight:700}
 main{padding:24px;overflow-y:auto}
 .page{display:none}.page.active{display:block}
 
 /* ── Page Header ── */
-.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;
+  gap:12px;flex-wrap:wrap}
 .ph h2{font-size:20px;font-weight:800;letter-spacing:-.4px}
 .ph p{font-size:13px;color:var(--muted);margin-top:3px}
 .ph-act{display:flex;gap:8px;flex-shrink:0;align-items:center;flex-wrap:wrap}
 
 /* ── Buttons ── */
-.btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;transition:all .12s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .12s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
 .btn-p{background:var(--accent);color:#fff}.btn-p:hover{background:#1d4ed8}
 .btn-o{background:#fff;color:var(--text);border:1.5px solid var(--border)}.btn-o:hover{border-color:var(--accent);color:var(--accent)}
 .btn-r{background:var(--red);color:#fff}.btn-r:hover{background:#b91c1c}
@@ -47,8 +86,10 @@ main{padding:24px;overflow-y:auto}
 .btn-xs{padding:3px 8px;font-size:11px}
 
 /* ── Cards ── */
-.card{background:var(--surface);border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:16px}
-.ch{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card{background:var(--surface);border-radius:10px;border:1px solid var(--border);
+  box-shadow:var(--sh);overflow:hidden;margin-bottom:16px}
+.ch{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  justify-content:space-between;gap:10px;flex-wrap:wrap}
 .ch h3{font-size:14px;font-weight:700}
 
 /* ── KPI ── */
@@ -60,15 +101,19 @@ main{padding:24px;overflow-y:auto}
 .kpi.amber .kv{color:var(--amber)}.kpi.purple .kv{color:var(--purple)}
 
 /* ── Forms ── */
-select,input[type=text],input[type=number],input[type=date]{padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--surface);color:var(--text);outline:none;width:100%}
+select,input[type=text],input[type=number],input[type=date],input[type=password]{
+  padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;
+  background:var(--surface);color:var(--text);outline:none;width:100%}
 select:focus,input:focus{border-color:var(--accent)}
 .field{margin-bottom:14px}
-.field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}
+.field label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;
+  text-transform:uppercase;letter-spacing:.4px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
-/* ── Tables (setup pages) ── */
+/* ── Tables ── */
 table{width:100%;border-collapse:collapse;font-size:13px}
-thead th{background:var(--bg);padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+thead th{background:var(--bg);padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--muted);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
 tbody tr:hover{background:#f8f9fd}
 tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle}
 .en{font-weight:600}.es{font-size:11px;color:var(--muted);margin-top:2px}
@@ -77,57 +122,52 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .ta{background:var(--amber-lt);color:var(--amber)}.tb{background:var(--alt);color:var(--accent)}
 .no-data{padding:40px;text-align:center;color:var(--muted);font-size:14px}
 
-/* ══════════════════════════════
-   SCHEDULE GRID
-══════════════════════════════ */
-.cal-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px 10px 0 0;border-bottom:none;padding:10px 14px}
+/* ══ SCHEDULE GRID ══ */
+.cal-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px 10px 0 0;
+  border-bottom:none;padding:10px 14px}
 .cal-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .cal-nav-title{flex:1;text-align:center;font-size:15px;font-weight:800}
 .cal-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.cal-filters label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.cal-filters label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.4px;white-space:nowrap}
 .cal-filters select{width:auto;padding:5px 9px;font-size:12px}
-
-/* Legend */
-.legend{display:flex;align-items:center;gap:14px;font-size:11px;font-weight:700;padding:8px 14px;background:#f8f9fd;border-top:1px solid var(--border);flex-wrap:wrap}
+.legend{display:flex;align-items:center;gap:14px;font-size:11px;font-weight:700;
+  padding:8px 14px;background:#f8f9fd;border-top:1px solid var(--border);flex-wrap:wrap}
 .legend-pip{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px}
-
-/* Grid */
-.sg-wrap{overflow-x:auto;border-radius:0 0 10px 10px;border:1px solid var(--border);box-shadow:var(--sh);background:var(--surface)}
+.sg-wrap{overflow-x:auto;border-radius:0 0 10px 10px;border:1px solid var(--border);
+  box-shadow:var(--sh);background:var(--surface)}
 .sg{border-collapse:collapse;width:100%;table-layout:fixed;background:var(--surface)}
-
-/* Header */
-.sg thead th{background:var(--bg);padding:9px 6px;border:1px solid var(--border);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);text-align:center;white-space:nowrap}
-.sg thead th.plate-hdr{text-align:left;width:150px;position:sticky;left:0;z-index:10;background:var(--bg);padding-left:14px}
+.sg thead th{background:var(--bg);padding:9px 6px;border:1px solid var(--border);font-size:10px;
+  font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);
+  text-align:center;white-space:nowrap}
+.sg thead th.plate-hdr{text-align:left;width:150px;position:sticky;left:0;z-index:10;
+  background:var(--bg);padding-left:14px}
 .sg thead th.day-hdr{width:calc((100% - 150px) / 7)}
 .sg thead th.sat-hdr{background:var(--sat-bg);color:var(--sat-fg)}
 .sg thead th.sun-hdr{background:var(--sun-bg);color:var(--sun-fg)}
 .sg thead th.today-hdr{background:#dbeafe;color:var(--accent)}
-
-/* Body */
 .sg tbody td{border:1px solid #eef0f6;padding:0;vertical-align:middle}
-.sg tbody td.plate-cell{padding:7px 12px;position:sticky;left:0;z-index:5;background:var(--surface);border-right:2px solid var(--border);width:150px}
+.sg tbody td.plate-cell{padding:7px 12px;position:sticky;left:0;z-index:5;background:var(--surface);
+  border-right:2px solid var(--border);width:150px}
 .sg tbody tr:hover .plate-cell{background:#f8f9fd}
 .plate-no{font-weight:800;font-size:12px;letter-spacing:.3px}
 .plate-desc{font-size:10px;color:var(--muted);margin-top:1px}
 .sg tbody td.today-col{background:#f0f6ff}
-
-/* Day cells */
 .dc{min-height:80px;width:100%;display:flex;align-items:stretch;cursor:pointer;transition:background .1s}
 .dc:hover{background:#ebf3ff}
-.dc-sat{background:var(--sat-bg);min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--sat-fg);letter-spacing:.5px;cursor:default;width:100%}
-.dc-rest{background:var(--sun-bg);min-height:80px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--sun-fg);letter-spacing:.5px;cursor:default;width:100%}
-.dc-dot{min-height:80px;width:100%;display:flex;align-items:center;justify-content:center;color:#d1d5db;font-size:20px;cursor:pointer;transition:all .1s}
+.dc-sat{background:var(--sat-bg);min-height:80px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;color:var(--sat-fg);letter-spacing:.5px;cursor:default;width:100%}
+.dc-rest{background:var(--sun-bg);min-height:80px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;color:var(--sun-fg);letter-spacing:.5px;cursor:default;width:100%}
+.dc-dot{min-height:80px;width:100%;display:flex;align-items:center;justify-content:center;
+  color:#d1d5db;font-size:20px;cursor:pointer;transition:all .1s}
 .dc-dot:hover{color:var(--accent);background:#ebf3ff;font-size:22px}
-
-/* Filled cell card */
 .dc-card{width:100%;padding:6px 7px;font-size:10px;line-height:1.55;border-left:3px solid currentColor;border-radius:0}
 .dc-stop{display:flex;justify-content:space-between;align-items:baseline;gap:4px;margin-bottom:1px}
 .dc-stop-name{font-weight:700;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .dc-stop-po{font-weight:800;font-size:10px;flex-shrink:0;opacity:.9}
 .dc-time{font-size:9px;opacity:.7;margin-bottom:2px}
 .dc-drv{font-size:9px;color:var(--muted);margin-top:3px;padding-top:3px;border-top:1px dashed rgba(0,0,0,.1)}
-
-/* Branch / Customer color palette */
 .cc-0{border-color:#2563eb;background:#eff6ff;color:#1e40af}
 .cc-1{border-color:#16a34a;background:#f0fdf4;color:#14532d}
 .cc-2{border-color:#d97706;background:#fffbeb;color:#78350f}
@@ -139,45 +179,52 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 
 /* Day checkboxes */
 .day-checks{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
-.day-checks label{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;transition:all .1s;user-select:none}
+.day-checks label{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;
+  color:var(--text);cursor:pointer;padding:5px 10px;border:1.5px solid var(--border);
+  border-radius:6px;transition:all .1s;user-select:none}
 .day-checks label:hover{border-color:var(--accent);color:var(--accent)}
 .day-checks input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px}
 .day-checks label.checked{border-color:var(--accent);background:var(--alt);color:var(--accent)}
-
-/* Delivery row hint */
-.deliv-hint{font-size:10px;color:var(--muted);margin-top:3px;padding:3px 6px;background:var(--bg);border-radius:4px;min-height:18px}
+.deliv-hint{font-size:10px;color:var(--muted);margin-top:3px;padding:3px 6px;
+  background:var(--bg);border-radius:4px;min-height:18px}
 .deliv-hint.warn{color:var(--amber);background:var(--amber-lt)}
 
 /* ── Modals ── */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;align-items:center;justify-content:center}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;
+  align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
-.modal{background:var(--surface);border-radius:12px;padding:26px;width:540px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal{background:var(--surface);border-radius:12px;padding:26px;width:540px;max-width:96vw;
+  max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
 .modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .modal-hdr h3{font-size:16px;font-weight:800}
-.modal-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;padding:2px 6px;border-radius:5px;transition:all .1s}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;
+  line-height:1;padding:2px 6px;border-radius:5px;transition:all .1s}
 .modal-close:hover{background:var(--red-lt);color:var(--red)}
-.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
-.section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-
-/* Delivery rows */
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;
+  border-top:1px solid var(--border)}
+.section-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .delivery-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .delivery-row{display:flex;gap:6px;align-items:center;background:var(--bg);border-radius:8px;padding:6px 8px}
 .delivery-row select{flex:1;font-size:12px;padding:5px 8px;background:var(--surface)}
 .delivery-row input[type=number]{width:80px;font-size:12px;padding:5px 8px;text-align:center;flex-shrink:0}
 .delivery-row .po-label{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
-
-/* Helper rows */
 .helpers-list{display:flex;flex-direction:column;gap:7px;margin-bottom:8px}
 .helper-row{display:flex;gap:6px;align-items:center}
 .helper-row input{flex:1}
 
 /* ── Toast ── */
-#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:9999;opacity:0;transform:translateY(8px);transition:all .25s;pointer-events:none;background:var(--text);color:#fff}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:13px;
+  font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:9999;opacity:0;transform:translateY(8px);
+  transition:all .25s;pointer-events:none;background:var(--text);color:#fff}
 #toast.show{opacity:1;transform:translateY(0)}
 #toast.ok{background:var(--green)}#toast.err{background:var(--red)}
 
+/* Loading overlay */
+.loading-row td{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+
 @media print{
-  .topbar,.layout aside,.ph-act,.cal-bar,.modal-bg,#toast{display:none!important}
+  #login-screen,.topbar,.layout aside,.ph-act,.cal-bar,.modal-bg,#toast{display:none!important}
   .layout{display:block}main{padding:0}
   .sg-wrap{box-shadow:none;border:1px solid #ccc;border-radius:0}
   .sg th,.sg td{font-size:9px}
@@ -186,14 +233,42 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 </head>
 <body>
 
+<!-- ════ LOGIN SCREEN ════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="ll-icon">🚛</div>
+      <h1>SII Logistics</h1>
+      <p>Sunbeams Impex Inc. — Schedule System</p>
+    </div>
+    <div class="login-err" id="l-err"></div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="l-user" placeholder="Enter username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="l-pass" placeholder="Enter password" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="l-btn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- ════ APP ════ -->
 <div class="topbar">
   <div class="brand">
     <div class="bl">🚛</div>
     <div><div class="bn">SII Logistics Schedule</div><div class="bs">Sunbeams Impex Inc.</div></div>
   </div>
   <div class="topbar-right">
-    <button class="btn btn-o btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
-    <button class="btn btn-o btn-sm" onclick="window.print()">🖨 Print</button>
+    <div class="user-pill" id="user-pill" style="display:none">
+      <div class="avatar" id="user-avatar">?</div>
+      <span class="uname" id="user-name">—</span>
+      <span class="role-badge" id="role-badge">—</span>
+    </div>
+    <button class="btn btn-o btn-sm role-edit" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn btn-o btn-sm role-edit" onclick="window.print()">🖨 Print</button>
+    <button class="btn btn-o btn-sm" id="btn-logout" onclick="logout()" style="display:none">Sign Out</button>
   </div>
 </div>
 
@@ -202,10 +277,12 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <div class="ns">Schedule</div>
   <button class="ni active" id="nav-cal"       onclick="go('cal')">      <span>📅</span> Schedule Grid</button>
   <button class="ni"        id="nav-dash"      onclick="go('dash')">     <span>📊</span> Dashboard</button>
-  <div class="ns">Setup</div>
-  <button class="ni"        id="nav-customers" onclick="go('customers')"><span>🏢</span> Customers</button>
-  <button class="ni"        id="nav-drivers"   onclick="go('drivers')">  <span>👤</span> Drivers</button>
-  <button class="ni"        id="nav-trucks"    onclick="go('trucks')">   <span>🚛</span> Trucks</button>
+  <div class="ns role-setup">Setup</div>
+  <button class="ni role-setup" id="nav-customers" onclick="go('customers')"><span>🏢</span> Customers</button>
+  <button class="ni role-setup" id="nav-drivers"   onclick="go('drivers')">  <span>👤</span> Drivers</button>
+  <button class="ni role-setup" id="nav-trucks"    onclick="go('trucks')">   <span>🚛</span> Trucks</button>
+  <div class="ns role-admin">Admin</div>
+  <button class="ni role-admin" id="nav-users"     onclick="go('users')">    <span>🔑</span> Users</button>
 </aside>
 
 <main>
@@ -215,30 +292,22 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <div class="ph">
     <div><h2>Schedule Grid</h2><p id="cal-lbl">—</p></div>
     <div class="ph-act">
-      <button class="btn btn-p btn-sm" onclick="openAddSched()">+ Add Schedule</button>
+      <button class="btn btn-p btn-sm role-edit" onclick="openAddSched()">+ Add Schedule</button>
     </div>
   </div>
-
   <div class="cal-bar">
-    <!-- Week navigation -->
     <div class="cal-nav">
       <button class="btn btn-o btn-sm" onclick="shiftWeek(-1)">← Prev Week</button>
       <div class="cal-nav-title" id="cal-title">—</div>
       <button class="btn btn-o btn-sm" onclick="shiftWeek(1)">Next Week →</button>
       <button class="btn btn-o btn-sm" onclick="goToday()">Today</button>
     </div>
-    <!-- Filters -->
     <div class="cal-filters">
       <label>Filter Truck</label>
-      <select id="filter-truck" onchange="renderCalendar()">
-        <option value="">All Trucks</option>
-      </select>
+      <select id="filter-truck" onchange="renderCalendar()"><option value="">All Trucks</option></select>
       <label>Filter Customer</label>
-      <select id="filter-cust" onchange="renderCalendar()">
-        <option value="">All Customers</option>
-      </select>
+      <select id="filter-cust" onchange="renderCalendar()"><option value="">All Customers</option></select>
     </div>
-    <!-- Legend -->
     <div class="legend" style="margin-top:8px;padding:0">
       <span style="color:var(--muted)">LEGEND:</span>
       <span><span class="legend-pip" style="background:var(--sat-bg);border:1px solid var(--sat-fg)"></span><span style="color:var(--sat-fg)">SAT — Off</span></span>
@@ -247,12 +316,8 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <span style="color:var(--muted)">· click any weekday cell to assign</span>
     </div>
   </div>
-
   <div class="sg-wrap">
-    <table class="sg">
-      <thead id="sg-head"></thead>
-      <tbody id="sg-body"></tbody>
-    </table>
+    <table class="sg"><thead id="sg-head"></thead><tbody id="sg-body"></tbody></table>
   </div>
 </div>
 
@@ -260,10 +325,10 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <div class="page" id="page-dash">
   <div class="ph"><div><h2>Dashboard</h2><p id="dash-lbl">—</p></div></div>
   <div class="kgrid">
-    <div class="kpi blue">  <div class="kv" id="k-routes">0</div>  <div class="kl">Routes This Week</div></div>
-    <div class="kpi green"> <div class="kv" id="k-trucks">0</div>  <div class="kl">Trucks Deployed</div></div>
-    <div class="kpi amber"> <div class="kv" id="k-pos">0</div>     <div class="kl">Total POs</div></div>
-    <div class="kpi purple"><div class="kv" id="k-custs">0</div>   <div class="kl">Customers Served</div></div>
+    <div class="kpi blue">  <div class="kv" id="k-routes">0</div><div class="kl">Routes This Week</div></div>
+    <div class="kpi green"> <div class="kv" id="k-trucks">0</div><div class="kl">Trucks Deployed</div></div>
+    <div class="kpi amber"> <div class="kv" id="k-pos">0</div>   <div class="kl">Total POs</div></div>
+    <div class="kpi purple"><div class="kv" id="k-custs">0</div> <div class="kl">Customers Served</div></div>
   </div>
   <div class="card">
     <div class="ch"><h3>📍 Today's Deliveries</h3><span id="today-date" style="font-size:12px;color:var(--muted)"></span></div>
@@ -281,14 +346,12 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div><h2>Customers</h2><p>Manage your customer list</p></div>
     <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddCustomer()">+ Add Customer</button></div>
   </div>
-  <div class="card">
-    <div style="padding:0">
-      <table>
-        <thead><tr><th>Customer Name</th><th>Address / Notes</th><th>Delivery Days</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead>
-        <tbody id="customers-body"></tbody>
-      </table>
-    </div>
-  </div>
+  <div class="card"><div style="padding:0">
+    <table>
+      <thead><tr><th>Customer Name</th><th>Address / Notes</th><th>Delivery Days</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody id="customers-body"></tbody>
+    </table>
+  </div></div>
 </div>
 
 <!-- ══ DRIVERS ══ -->
@@ -297,14 +360,12 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div><h2>Drivers</h2><p>Saved driver names for quick selection</p></div>
     <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddDriver()">+ Add Driver</button></div>
   </div>
-  <div class="card">
-    <div style="padding:0">
-      <table>
-        <thead><tr><th>Driver Name</th><th>Notes</th><th style="text-align:right">Actions</th></tr></thead>
-        <tbody id="drivers-body"></tbody>
-      </table>
-    </div>
-  </div>
+  <div class="card"><div style="padding:0">
+    <table>
+      <thead><tr><th>Driver Name</th><th>Notes</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody id="drivers-body"></tbody>
+    </table>
+  </div></div>
 </div>
 
 <!-- ══ TRUCKS ══ -->
@@ -313,14 +374,26 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div><h2>Trucks</h2><p>Registered truck plate numbers</p></div>
     <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddTruck()">+ Add Truck</button></div>
   </div>
-  <div class="card">
-    <div style="padding:0">
-      <table>
-        <thead><tr><th>Plate Number</th><th>Type / Description</th><th style="text-align:right">Actions</th></tr></thead>
-        <tbody id="trucks-body"></tbody>
-      </table>
-    </div>
+  <div class="card"><div style="padding:0">
+    <table>
+      <thead><tr><th>Plate Number</th><th>Type / Description</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody id="trucks-body"></tbody>
+    </table>
+  </div></div>
+</div>
+
+<!-- ══ USERS (admin only) ══ -->
+<div class="page" id="page-users">
+  <div class="ph">
+    <div><h2>Users</h2><p>Manage login accounts and roles</p></div>
+    <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddUser()">+ Add User</button></div>
   </div>
+  <div class="card"><div style="padding:0">
+    <table>
+      <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th style="text-align:right">Actions</th></tr></thead>
+      <tbody id="users-body"></tbody>
+    </table>
+  </div></div>
 </div>
 
 </main>
@@ -334,12 +407,8 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <button class="modal-close" onclick="closeModal('m-sched')">✕</button>
     </div>
     <input type="hidden" id="f-sched-id">
-
     <div class="field-row">
-      <div class="field">
-        <label>Date</label>
-        <input type="date" id="f-date">
-      </div>
+      <div class="field"><label>Date</label><input type="date" id="f-date"></div>
       <div class="field">
         <label>Truck Plate</label>
         <select id="f-plate-sel" onchange="document.getElementById('f-plate').value=this.value"></select>
@@ -349,12 +418,9 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <label>Plate (type to override)</label>
       <input type="text" id="f-plate" placeholder="e.g. ABC-1234" style="text-transform:uppercase">
     </div>
-
-    <!-- Deliveries -->
     <div class="section-label">Deliveries — Customer &amp; PO Count</div>
     <div class="delivery-list" id="delivery-list"></div>
     <button class="btn btn-o btn-xs" onclick="addDeliveryRow()" style="margin-bottom:16px">+ Add Customer Stop</button>
-
     <div class="section-label">Driver &amp; Crew</div>
     <div class="field-row">
       <div class="field">
@@ -375,7 +441,6 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <label>Notes <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
       <input type="text" id="f-notes" placeholder="e.g. Priority delivery, fragile cargo...">
     </div>
-
     <div class="modal-foot">
       <button class="btn btn-r btn-sm" id="btn-del-sched" onclick="deleteSched()" style="display:none;margin-right:auto">🗑 Delete</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-sched')">Cancel</button>
@@ -449,6 +514,37 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   </div>
 </div>
 
+<!-- ════ MODAL: User ════ -->
+<div class="modal-bg" id="m-user">
+  <div class="modal" style="width:400px">
+    <div class="modal-hdr">
+      <h3 id="m-user-title">Add User</h3>
+      <button class="modal-close" onclick="closeModal('m-user')">✕</button>
+    </div>
+    <input type="hidden" id="f-user-id">
+    <div class="field"><label>Username</label><input type="text" id="f-uname" placeholder="e.g. jdelacruz" style="text-transform:lowercase"></div>
+    <div class="field"><label>Full Name</label><input type="text" id="f-ufullname" placeholder="e.g. Juan Dela Cruz"></div>
+    <div class="field">
+      <label>Role</label>
+      <select id="f-urole">
+        <option value="admin">Admin — full access + user management</option>
+        <option value="editor" selected>Editor — add/edit schedules &amp; setup</option>
+        <option value="viewer">HR Viewer — read-only schedule &amp; dashboard</option>
+      </select>
+    </div>
+    <div class="field">
+      <label id="f-upass-label">Password</label>
+      <input type="password" id="f-upass" placeholder="Enter password">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px" id="f-upass-hint">Leave blank to keep existing password (edit mode)</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-r btn-sm" id="btn-del-user" onclick="deleteUser()" style="display:none;margin-right:auto">🗑 Delete</button>
+      <button class="btn btn-o btn-sm" onclick="closeModal('m-user')">Cancel</button>
+      <button class="btn btn-p btn-sm" onclick="saveUser()">Save User</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════ MODAL: Confirm ════ -->
 <div class="modal-bg" id="m-confirm">
   <div class="modal" style="width:360px">
@@ -468,29 +564,134 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 
 <script>
 // ══════════════════════════════════════════════════
-//  STORAGE
+//  AUTH STATE
 // ══════════════════════════════════════════════════
-const KEYS = { customers:'sii_customers', schedules:'sii_schedules', drivers:'sii_drivers', trucks:'sii_trucks' };
-const load = k => { try{ return JSON.parse(localStorage.getItem(k)||'[]'); }catch(e){ return []; } };
-const save = (k,d) => localStorage.setItem(k,JSON.stringify(d));
-const getCustomers = () => load(KEYS.customers);
-const getSchedules = () => load(KEYS.schedules);
-const getDrivers   = () => load(KEYS.drivers);
-const getTrucks    = () => load(KEYS.trucks);
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+let authToken   = localStorage.getItem('sii_token') || '';
+let currentUser = null; // { username, name, role }
+
+const authHdr = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken });
+
+// ── Login / Logout ──────────────────────────────────
+async function doLogin() {
+  const btn  = document.getElementById('l-btn');
+  const err  = document.getElementById('l-err');
+  const user = document.getElementById('l-user').value.trim();
+  const pass = document.getElementById('l-pass').value;
+  if (!user || !pass) { showLoginErr('Please enter username and password'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  err.classList.remove('show');
+  try {
+    const res  = await fetch('/api/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'login', username:user, password:pass }) });
+    const json = await res.json();
+    if (!res.ok) { showLoginErr(json.error || 'Login failed'); return; }
+    authToken = json.token;
+    localStorage.setItem('sii_token', authToken);
+    currentUser = json.user;
+    await showApp();
+  } catch(e) {
+    showLoginErr('Could not reach server. Check your connection.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+function showLoginErr(msg) {
+  const err = document.getElementById('l-err');
+  err.textContent = msg; err.classList.add('show');
+}
+
+function logout() {
+  authToken = ''; currentUser = null;
+  localStorage.removeItem('sii_token');
+  cache = {};
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('l-user').value = '';
+  document.getElementById('l-pass').value = '';
+  document.getElementById('l-err').classList.remove('show');
+}
+
+async function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  // Update topbar
+  const pill = document.getElementById('user-pill');
+  pill.style.display = 'flex';
+  document.getElementById('btn-logout').style.display = '';
+  document.getElementById('user-avatar').textContent = (currentUser.name||currentUser.username).charAt(0).toUpperCase();
+  document.getElementById('user-name').textContent   = currentUser.name || currentUser.username;
+  const rb = document.getElementById('role-badge');
+  rb.textContent = currentUser.role === 'viewer' ? 'HR Viewer' : currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  rb.className   = 'role-badge ' + currentUser.role;
+  // Apply role-based UI
+  applyRole(currentUser.role);
+  // Warm cache then render
+  await warmCache();
+  await populateFilters();
+  renderCalendar();
+}
+
+function applyRole(role) {
+  // Admin-only elements
+  document.querySelectorAll('.role-admin').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+  // Setup section: hidden for viewers
+  document.querySelectorAll('.role-setup').forEach(el => el.style.display = role === 'viewer' ? 'none' : '');
+  // Edit controls: hidden for viewers
+  document.querySelectorAll('.role-edit').forEach(el => el.style.display = role === 'viewer' ? 'none' : '');
+}
+
+// ── Enter key on login ──
+document.getElementById('l-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('l-user').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('l-pass').focus(); });
+
+// ══════════════════════════════════════════════════
+//  DATA CACHE + API LAYER
+// ══════════════════════════════════════════════════
+let cache = {};
+
+async function apiGet(col) {
+  if (cache[col]) return cache[col];
+  try {
+    const res  = await fetch('/api/data?col=' + col, { headers: authHdr() });
+    if (res.status === 401) { logout(); return []; }
+    const json = await res.json();
+    cache[col] = json.data || [];
+    return cache[col];
+  } catch(e) { return []; }
+}
+
+async function apiSave(col, item) {
+  delete cache[col];
+  const res  = await fetch('/api/data?col=' + col, { method:'POST', headers: authHdr(), body: JSON.stringify({ op:'save', item }) });
+  if (res.status === 401) { logout(); return null; }
+  const json = await res.json();
+  if (json.data) cache[col] = json.data;
+  return json;
+}
+
+async function apiDelete(col, id) {
+  delete cache[col];
+  const res  = await fetch('/api/data?col=' + col, { method:'POST', headers: authHdr(), body: JSON.stringify({ op:'delete', id }) });
+  if (res.status === 401) { logout(); return null; }
+  const json = await res.json();
+  if (json.data) cache[col] = json.data;
+  return json;
+}
+
+async function warmCache() {
+  await Promise.all(['schedules','trucks','customers','drivers'].map(c => apiGet(c)));
+}
 
 // ══════════════════════════════════════════════════
 //  DATE HELPERS
 // ══════════════════════════════════════════════════
 const getMonday = d => {
-  const r=new Date(d); r.setHours(0,0,0,0);
-  const day=r.getDay(); r.setDate(r.getDate()+(day===0?-6:1-day));
+  const r = new Date(d); r.setHours(0,0,0,0);
+  const day = r.getDay(); r.setDate(r.getDate() + (day===0 ? -6 : 1-day));
   return r;
 };
 const dStr    = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const addDays = (d,n) => { const r=new Date(d); r.setDate(r.getDate()+n); return r; };
-const isSat   = d => d.getDay()===6;
-const isSun   = d => d.getDay()===0;
+const isSat   = d => d.getDay() === 6;
+const isSun   = d => d.getDay() === 0;
 const fmtMD   = d => d.toLocaleDateString('en-PH',{month:'short',day:'numeric'});
 const fmtDay  = d => d.toLocaleDateString('en-PH',{weekday:'short'}).toUpperCase().slice(0,2);
 const fmtMMDD = d => (d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');
@@ -499,150 +700,145 @@ const fmtMMDD = d => (d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate()
 //  STATE
 // ══════════════════════════════════════════════════
 let weekStart = getMonday(new Date());
-
 const shiftWeek = dir => { weekStart = addDays(weekStart, dir*7); renderCalendar(); };
 const goToday   = ()  => { weekStart = getMonday(new Date()); renderCalendar(); };
-
-// Populate filter dropdowns without touching their current value
-function populateFilters(){
-  const ftSel = document.getElementById('filter-truck');
-  const fcSel = document.getElementById('filter-cust');
-  const prevT = ftSel.value, prevC = fcSel.value;
-
-  ftSel.innerHTML = '<option value="">All Trucks</option>' +
-    getTrucks().map(t=>`<option value="${esc(t.plate)}">${esc(t.plate)}${t.desc?' – '+esc(t.desc):''}</option>`).join('');
-  ftSel.value = prevT; // restore selection exactly
-
-  fcSel.innerHTML = '<option value="">All Customers</option>' +
-    getCustomers().map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  fcSel.value = prevC; // restore selection exactly
-}
-
-// Week days: Mon(0) … Fri(4) SAT(5) SUN(6)
 const getWeekDays = () => Array.from({length:7}, (_,i) => addDays(weekStart, i));
 
 // ══════════════════════════════════════════════════
 //  NAVIGATION
 // ══════════════════════════════════════════════════
-function go(page){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+function go(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
-  document.getElementById('nav-'+page).classList.add('active');
-  if(page==='cal')       renderCalendar();
-  if(page==='dash')      renderDashboard();
-  if(page==='customers') renderCustomersPage();
-  if(page==='drivers')   renderDriversPage();
-  if(page==='trucks')    renderTrucksPage();
+  const nav = document.getElementById('nav-'+page);
+  if (nav) nav.classList.add('active');
+  if (page==='cal')       renderCalendar();
+  if (page==='dash')      renderDashboard();
+  if (page==='customers') renderCustomersPage();
+  if (page==='drivers')   renderDriversPage();
+  if (page==='trucks')    renderTrucksPage();
+  if (page==='users')     renderUsersPage();
+}
+
+// ══════════════════════════════════════════════════
+//  FILTERS (populated separately from renderCalendar)
+// ══════════════════════════════════════════════════
+async function populateFilters() {
+  const ftSel = document.getElementById('filter-truck');
+  const fcSel = document.getElementById('filter-cust');
+  const prevT = ftSel.value, prevC = fcSel.value;
+  const [trucks, customers] = await Promise.all([apiGet('trucks'), apiGet('customers')]);
+  ftSel.innerHTML = '<option value="">All Trucks</option>' +
+    trucks.map(t => `<option value="${esc(t.plate)}">${esc(t.plate)}${t.desc?' – '+esc(t.desc):''}</option>`).join('');
+  ftSel.value = prevT;
+  fcSel.innerHTML = '<option value="">All Customers</option>' +
+    customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  fcSel.value = prevC;
 }
 
 // ══════════════════════════════════════════════════
 //  SCHEDULE GRID
 // ══════════════════════════════════════════════════
-function renderCalendar(){
-  const days      = getWeekDays();   // Mon … Sun
-  const today     = dStr(new Date());
-  const ws        = dStr(days[0]), we = dStr(days[6]);
-  const weekEnd   = days[6];
+async function renderCalendar() {
+  const days    = getWeekDays();
+  const today   = dStr(new Date());
+  const ws      = dStr(days[0]), we = dStr(days[6]);
+  const weekEnd = days[6];
 
   document.getElementById('cal-title').textContent =
     `${fmtMD(days[0])} – ${fmtMD(weekEnd)} ${weekEnd.getFullYear()}`;
   document.getElementById('cal-lbl').textContent =
     `Week of ${days[0].toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'})}`;
 
-  // Build customer color index
-  const customers = getCustomers();
-  const cMap      = Object.fromEntries(customers.map(c=>[c.id,c]));
-  const cColorIdx = Object.fromEntries(customers.map((c,i)=>[c.id,i%8]));
+  document.getElementById('sg-body').innerHTML =
+    '<tr class="loading-row"><td colspan="8">Loading schedule…</td></tr>';
 
-  // Read filter values (dropdowns are populated separately via populateFilters())
+  const [schedules, trucks, customers] = await Promise.all([
+    apiGet('schedules'), apiGet('trucks'), apiGet('customers')
+  ]);
+
+  const cMap      = Object.fromEntries(customers.map(c => [c.id, c]));
+  const cColorIdx = Object.fromEntries(customers.map((c,i) => [c.id, i%8]));
   const selT = document.getElementById('filter-truck').value;
   const selC = document.getElementById('filter-cust').value;
 
-  // Schedules for this week
-  const allScheds = getSchedules().filter(s=>s.date>=ws&&s.date<=we);
-  // Lookup: plate_date → schedule
+  const allScheds = schedules.filter(s => s.date >= ws && s.date <= we);
   const lookup = {};
-  allScheds.forEach(s => { lookup[s.plate+'_'+s.date]=s; });
+  allScheds.forEach(s => { lookup[s.plate+'_'+s.date] = s; });
 
-  // Filtered trucks (rows)
-  let trucks = getTrucks();
-  if(selT) trucks = trucks.filter(t=>t.plate===selT);
-  if(selC) trucks = trucks.filter(t=>
-    allScheds.some(s=>s.plate===t.plate&&(s.deliveries||[]).some(d=>d.cid===selC))
+  let visibleTrucks = [...trucks];
+  if (selT) visibleTrucks = visibleTrucks.filter(t => t.plate === selT);
+  if (selC) visibleTrucks = visibleTrucks.filter(t =>
+    allScheds.some(s => s.plate === t.plate && (s.deliveries||[]).some(d => d.cid === selC))
   );
 
-  // ── Header
+  // Header
   document.getElementById('sg-head').innerHTML =
     '<tr><th class="plate-hdr">PLATE NO.</th>' +
-    days.map(d=>{
-      const ds  = dStr(d);
-      const abbr= fmtDay(d);
-      let cls = 'day-hdr';
-      if(isSat(d))    cls+=' sat-hdr';
-      else if(isSun(d)) cls+=' sun-hdr';
-      else if(ds===today) cls+=' today-hdr';
-      return `<th class="${cls}">${abbr}<br><span style="font-weight:500;font-size:10px">${fmtMMDD(d)}</span></th>`;
+    days.map(d => {
+      const ds = dStr(d);
+      let cls  = 'day-hdr';
+      if (isSat(d))       cls += ' sat-hdr';
+      else if (isSun(d))  cls += ' sun-hdr';
+      else if (ds===today) cls += ' today-hdr';
+      return `<th class="${cls}">${fmtDay(d)}<br><span style="font-weight:500;font-size:10px">${fmtMMDD(d)}</span></th>`;
     }).join('') + '</tr>';
 
-  // ── Body
   const tbody = document.getElementById('sg-body');
-  if(!getTrucks().length){
-    tbody.innerHTML=`<tr><td colspan="8"><div class="no-data">No trucks yet. Go to <strong>Trucks</strong> to add plate numbers first.</div></td></tr>`;
+  if (!trucks.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="no-data">No trucks yet. Go to <strong>Trucks</strong> to add plate numbers first.</div></td></tr>`;
     return;
   }
-  if(!trucks.length){
-    tbody.innerHTML=`<tr><td colspan="8"><div class="no-data">No trucks match the current filter.</div></td></tr>`;
+  if (!visibleTrucks.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="no-data">No trucks match the current filter.</div></td></tr>`;
     return;
   }
 
-  tbody.innerHTML = trucks.map(truck=>{
-    const cells = days.map(d=>{
-      const ds    = dStr(d);
-      const sched = lookup[truck.plate+'_'+ds];
-      const isToday = ds===today;
-      const tdClass = isToday ? 'today-col' : '';
+  tbody.innerHTML = visibleTrucks.map(truck => {
+    const cells = days.map(d => {
+      const ds      = dStr(d);
+      const sched   = lookup[truck.plate+'_'+ds];
+      const isToday = ds === today;
+      const tdCls   = isToday ? 'today-col' : '';
 
-      if(isSun(d)) return `<td class="${tdClass}"><div class="dc-rest">REST</div></td>`;
-      if(isSat(d)) return `<td class="${tdClass}"><div class="dc-sat">SAT</div></td>`;
+      if (isSun(d)) return `<td class="${tdCls}"><div class="dc-rest">REST</div></td>`;
+      if (isSat(d)) return `<td class="${tdCls}"><div class="dc-sat">SAT</div></td>`;
 
-      if(sched){
-        const delivs  = sched.deliveries||[];
-        const first   = delivs[0];
-        const ci      = (first&&cColorIdx[first.cid]!==undefined) ? cColorIdx[first.cid] : 0;
-        const drvLast = sched.driver ? sched.driver.split(' ').pop() : '—';
-        // Show ALL stops
-        const stopLines = delivs.map(d=>{
-          const c    = cMap[d.cid];
-          const name = c ? c.name : '—';
-          const po   = parseInt(d.po)||0;
-          return `<div class="dc-stop">
-            <span class="dc-stop-name" title="${esc(name)}">${esc(name)}</span>
-            <span class="dc-stop-po">${po} PO${po!==1?'s':''}</span>
-          </div>`;
+      if (sched) {
+        const delivs   = sched.deliveries || [];
+        const first    = delivs[0];
+        const ci       = (first && cColorIdx[first.cid] !== undefined) ? cColorIdx[first.cid] : 0;
+        const drvLast  = sched.driver ? sched.driver.split(' ').pop() : '—';
+        const stopLines = delivs.map(dv => {
+          const c   = cMap[dv.cid];
+          const nm  = c ? c.name : '—';
+          const po  = parseInt(dv.po)||0;
+          return `<div class="dc-stop"><span class="dc-stop-name" title="${esc(nm)}">${esc(nm)}</span><span class="dc-stop-po">${po} PO${po!==1?'s':''}</span></div>`;
         }).join('');
-        // Delivery time from first customer
         const firstCust = first ? cMap[first.cid] : null;
         const timeStr   = firstCust?.time ? `⏰ ${esc(firstCust.time)}` : '';
-        return `<td class="${tdClass}">
-          <div class="dc" onclick="openEditSched('${sched.id}')">
+        return `<td class="${tdCls}">
+          <div class="dc" onclick="openEditSched('${esc(sched.id)}')">
             <div class="dc-card cc-${ci}">
               ${stopLines}
-              ${timeStr?`<div class="dc-time">${timeStr}</div>`:''}
+              ${timeStr ? `<div class="dc-time">${timeStr}</div>` : ''}
               <div class="dc-drv">👤 ${esc(drvLast)}</div>
             </div>
           </div></td>`;
       } else {
-        return `<td class="${tdClass}">
-          <div class="dc-dot" onclick="openAddSchedFor('${esc(truck.plate)}','${ds}')">·</div>
-        </td>`;
+        if (currentUser && currentUser.role === 'viewer') {
+          return `<td class="${tdCls}"><div style="min-height:80px"></div></td>`;
+        }
+        return `<td class="${tdCls}">
+          <div class="dc-dot" onclick="openAddSchedFor('${esc(truck.plate)}','${ds}')">·</div></td>`;
       }
     }).join('');
 
     return `<tr>
       <td class="plate-cell">
         <div class="plate-no">🚛 ${esc(truck.plate)}</div>
-        ${truck.desc?`<div class="plate-desc">${esc(truck.desc)}</div>`:''}
+        ${truck.desc ? `<div class="plate-desc">${esc(truck.desc)}</div>` : ''}
       </td>${cells}</tr>`;
   }).join('');
 }
@@ -650,162 +846,158 @@ function renderCalendar(){
 // ══════════════════════════════════════════════════
 //  SCHEDULE MODAL
 // ══════════════════════════════════════════════════
-function openAddSched(){
-  if(!getCustomers().length){ toast('Add at least one customer first','err'); go('customers'); return; }
-  document.getElementById('f-sched-id').value='';
-  document.getElementById('f-date').value=dStr(new Date());
-  document.getElementById('f-plate').value=getTrucks()[0]?.plate||'';
-  document.getElementById('f-driver').value='';
-  document.getElementById('f-notes').value='';
-  document.getElementById('btn-del-sched').style.display='none';
-  document.getElementById('m-sched-title').textContent='Add Schedule';
-  populateSchedDropdowns(getTrucks()[0]?.plate||'','');
+async function openAddSched() {
+  const customers = await apiGet('customers');
+  if (!customers.length) { toast('Add at least one customer first','err'); go('customers'); return; }
+  const trucks = await apiGet('trucks');
+  document.getElementById('f-sched-id').value = '';
+  document.getElementById('f-date').value     = dStr(new Date());
+  document.getElementById('f-plate').value    = trucks[0]?.plate || '';
+  document.getElementById('f-driver').value   = '';
+  document.getElementById('f-notes').value    = '';
+  document.getElementById('btn-del-sched').style.display = 'none';
+  document.getElementById('m-sched-title').textContent   = 'Add Schedule';
+  await populateSchedDropdowns(trucks[0]?.plate||'', '');
   setDeliveries([{cid:'',po:''}]);
   setHelpers(['']);
   openModal('m-sched');
 }
 
-function openAddSchedFor(plate,date){
-  openAddSched();
-  document.getElementById('f-date').value=date;
-  document.getElementById('f-plate').value=plate;
-  document.getElementById('f-plate-sel').value=plate;
+async function openAddSchedFor(plate, date) {
+  await openAddSched();
+  document.getElementById('f-date').value = date;
+  document.getElementById('f-plate').value = plate;
+  document.getElementById('f-plate-sel').value = plate;
 }
 
-function openEditSched(id){
-  const s=getSchedules().find(x=>x.id===id); if(!s) return;
-  document.getElementById('f-sched-id').value=s.id;
-  document.getElementById('f-date').value=s.date;
-  document.getElementById('f-plate').value=s.plate;
-  document.getElementById('f-driver').value=s.driver||'';
-  document.getElementById('f-notes').value=s.notes||'';
-  document.getElementById('btn-del-sched').style.display='';
-  document.getElementById('m-sched-title').textContent='Edit Schedule';
-  populateSchedDropdowns(s.plate, s.driver||'');
-  setDeliveries(s.deliveries&&s.deliveries.length ? s.deliveries : [{cid:'',po:''}]);
-  setHelpers(s.helpers&&s.helpers.length ? s.helpers : ['']);
+async function openEditSched(id) {
+  const schedules = await apiGet('schedules');
+  const s = schedules.find(x => x.id === id); if (!s) return;
+  document.getElementById('f-sched-id').value = s.id;
+  document.getElementById('f-date').value     = s.date;
+  document.getElementById('f-plate').value    = s.plate;
+  document.getElementById('f-driver').value   = s.driver || '';
+  document.getElementById('f-notes').value    = s.notes  || '';
+  document.getElementById('btn-del-sched').style.display = currentUser?.role === 'viewer' ? 'none' : '';
+  document.getElementById('m-sched-title').textContent   = currentUser?.role === 'viewer' ? 'View Schedule' : 'Edit Schedule';
+  await populateSchedDropdowns(s.plate, s.driver||'');
+  setDeliveries(s.deliveries?.length ? s.deliveries : [{cid:'',po:''}]);
+  setHelpers(s.helpers?.length ? s.helpers : ['']);
+  // Disable all inputs for viewers
+  if (currentUser?.role === 'viewer') {
+    document.querySelectorAll('#m-sched input,#m-sched select').forEach(el => el.disabled = true);
+    document.getElementById('m-sched').querySelector('.modal-foot .btn-p').style.display = 'none';
+  } else {
+    document.querySelectorAll('#m-sched input,#m-sched select').forEach(el => el.disabled = false);
+    document.getElementById('m-sched').querySelector('.modal-foot .btn-p').style.display = '';
+  }
   openModal('m-sched');
 }
 
-function populateSchedDropdowns(plate,driver){
-  const trucks  = getTrucks();
-  const drivers = getDrivers();
+async function populateSchedDropdowns(plate, driver) {
+  const [trucks, drivers] = await Promise.all([apiGet('trucks'), apiGet('drivers')]);
   document.getElementById('f-plate-sel').innerHTML =
-    '<option value="">— Select truck —</option>'+
-    trucks.map(t=>`<option value="${esc(t.plate)}" ${t.plate===plate?'selected':''}>${esc(t.plate)}${t.desc?' ('+esc(t.desc)+')':''}</option>`).join('');
-  if(plate) document.getElementById('f-plate-sel').value=plate;
+    '<option value="">— Select truck —</option>' +
+    trucks.map(t => `<option value="${esc(t.plate)}" ${t.plate===plate?'selected':''}>${esc(t.plate)}${t.desc?' ('+esc(t.desc)+')':''}</option>`).join('');
+  if (plate) document.getElementById('f-plate-sel').value = plate;
   document.getElementById('f-driver-sel').innerHTML =
-    '<option value="">— Select driver —</option>'+
-    drivers.map(d=>`<option value="${esc(d.name)}" ${d.name===driver?'selected':''}>${esc(d.name)}</option>`).join('');
-  if(driver) document.getElementById('f-driver-sel').value=driver;
+    '<option value="">— Select driver —</option>' +
+    drivers.map(d => `<option value="${esc(d.name)}" ${d.name===driver?'selected':''}>${esc(d.name)}</option>`).join('');
+  if (driver) document.getElementById('f-driver-sel').value = driver;
 }
 
-/* Delivery rows */
-function setDeliveries(arr){
-  document.getElementById('delivery-list').innerHTML='';
-  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||''));
-}
-function addDeliveryRow(cid='',po=''){
-  const customers = getCustomers();
-  const opts = '<option value="">— Select customer —</option>'+
-    customers.map(c=>`<option value="${c.id}" ${c.id===cid?'selected':''}>${esc(c.name)}</option>`).join('');
+async function addDeliveryRow(cid='', po='') {
+  const customers = await apiGet('customers');
+  const opts = '<option value="">— Select customer —</option>' +
+    customers.map(c => `<option value="${c.id}" ${c.id===cid?'selected':''}>${esc(c.name)}</option>`).join('');
   const row = document.createElement('div');
-  row.className='delivery-row';
-  row.style.cssText='flex-direction:column;gap:4px';
-  row.innerHTML=`
+  row.className = 'delivery-row';
+  row.style.cssText = 'flex-direction:column;gap:4px';
+  row.innerHTML = `
     <div style="display:flex;gap:6px;align-items:center">
       <select style="flex:1;font-size:12px;padding:5px 8px">${opts}</select>
       <span class="po-label">POs:</span>
       <input type="number" min="0" value="${esc(String(po))}" placeholder="0" style="width:70px;font-size:12px;padding:5px 8px;text-align:center">
       <button class="btn btn-o btn-xs" onclick="this.closest('.delivery-row').remove()" style="flex-shrink:0">✕</button>
     </div>
-    <div class="deliv-hint" id="hint-${Date.now()}"></div>`;
+    <div class="deliv-hint"></div>`;
   document.getElementById('delivery-list').appendChild(row);
 
-  // Wire up the hint
   const sel  = row.querySelector('select');
   const hint = row.querySelector('.deliv-hint');
   const updateHint = () => {
-    const c = customers.find(x=>x.id===sel.value);
-    if(!c){ hint.textContent=''; hint.className='deliv-hint'; return; }
-    const days = (c.days||[]).join(' · ');
-    const time = c.time||'';
-    hint.textContent = [days,time].filter(Boolean).join('  ·  ');
-    // Check if selected date matches delivery days
+    const c = customers.find(x => x.id === sel.value);
+    if (!c) { hint.textContent=''; hint.className='deliv-hint'; return; }
+    hint.textContent = [(c.days||[]).join(' · '), c.time||''].filter(Boolean).join('  ·  ');
     const dateVal = document.getElementById('f-date').value;
-    if(dateVal && c.days && c.days.length){
-      const dt = new Date(dateVal+'T00:00:00');
-      const dayNames = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-      const selDay = dayNames[dt.getDay()];
-      if(!c.days.includes(selDay)){
-        hint.textContent += `  ⚠️ Not a scheduled delivery day`;
-        hint.className='deliv-hint warn';
-      } else {
-        hint.className='deliv-hint';
-      }
-    } else {
-      hint.className='deliv-hint';
-    }
+    if (dateVal && c.days?.length) {
+      const dt  = new Date(dateVal+'T00:00:00');
+      const day = ['SUN','MON','TUE','WED','THU','FRI','SAT'][dt.getDay()];
+      if (!c.days.includes(day)) {
+        hint.textContent += '  ⚠️ Not a scheduled delivery day';
+        hint.className = 'deliv-hint warn';
+      } else { hint.className = 'deliv-hint'; }
+    } else { hint.className = 'deliv-hint'; }
   };
   sel.addEventListener('change', updateHint);
   document.getElementById('f-date').addEventListener('change', updateHint);
-  if(cid) updateHint();
-}
-function getDeliveries(){
-  return [...document.querySelectorAll('.delivery-row')].map(row=>{
-    const sel = row.querySelector('select');
-    const inp = row.querySelector('input[type=number]');
-    return { cid: sel.value, po: parseInt(inp.value)||0 };
-  }).filter(d=>d.cid);
+  if (cid) updateHint();
 }
 
-/* Helper rows */
-function setHelpers(arr){
-  document.getElementById('helpers-list').innerHTML='';
-  arr.forEach(v=>addHelperRow(v));
+function setDeliveries(arr) {
+  document.getElementById('delivery-list').innerHTML = '';
+  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||''));
 }
-function addHelper(){ addHelperRow(''); }
-function addHelperRow(val=''){
-  const row=document.createElement('div'); row.className='helper-row';
-  row.innerHTML=`<input type="text" placeholder="Helper name" value="${esc(val)}">
+function getDeliveries() {
+  return [...document.querySelectorAll('.delivery-row')].map(row => ({
+    cid: row.querySelector('select').value,
+    po:  parseInt(row.querySelector('input[type=number]').value)||0
+  })).filter(d => d.cid);
+}
+
+function setHelpers(arr) { document.getElementById('helpers-list').innerHTML=''; arr.forEach(v => addHelperRow(v)); }
+function addHelper()     { addHelperRow(''); }
+function addHelperRow(val='') {
+  const row = document.createElement('div'); row.className = 'helper-row';
+  row.innerHTML = `<input type="text" placeholder="Helper name" value="${esc(val)}">
     <button class="btn btn-o btn-xs" onclick="this.parentElement.remove()" style="flex-shrink:0">✕</button>`;
   document.getElementById('helpers-list').appendChild(row);
 }
 
-function saveSched(){
-  const id      = document.getElementById('f-sched-id').value;
-  const date    = document.getElementById('f-date').value;
-  const plate   = document.getElementById('f-plate').value.trim().toUpperCase();
-  const driver  = document.getElementById('f-driver').value.trim();
-  const notes   = document.getElementById('f-notes').value.trim();
-  const helpers = [...document.querySelectorAll('#helpers-list input')].map(i=>i.value.trim()).filter(Boolean);
+async function saveSched() {
+  const id        = document.getElementById('f-sched-id').value;
+  const date      = document.getElementById('f-date').value;
+  const plate     = document.getElementById('f-plate').value.trim().toUpperCase();
+  const driver    = document.getElementById('f-driver').value.trim();
+  const notes     = document.getElementById('f-notes').value.trim();
+  const helpers   = [...document.querySelectorAll('#helpers-list input')].map(i=>i.value.trim()).filter(Boolean);
   const deliveries = getDeliveries();
 
-  if(!date||!plate||!driver){ toast('Date, plate, and driver are required','err'); return; }
-  if(!deliveries.length)    { toast('Add at least one customer delivery','err'); return; }
+  if (!date||!plate||!driver) { toast('Date, plate, and driver are required','err'); return; }
+  if (!deliveries.length)     { toast('Add at least one customer delivery','err'); return; }
 
-  const dt=new Date(date+'T00:00:00');
-  if(isSun(dt)){ toast('Sundays are rest days','err'); return; }
-  if(isSat(dt)){ toast('Saturdays are off','err'); return; }
+  const dt = new Date(date+'T00:00:00');
+  if (isSun(dt)) { toast('Sundays are rest days','err'); return; }
+  if (isSat(dt)) { toast('Saturdays are off','err'); return; }
 
-  let scheds=getSchedules();
-  const dup=scheds.find(s=>s.plate===plate&&s.date===date&&s.id!==id);
-  if(dup){ toast('This truck already has a schedule on that date','err'); return; }
+  const schedules = await apiGet('schedules');
+  const dup = schedules.find(s => s.plate===plate && s.date===date && s.id!==id);
+  if (dup) { toast('This truck already has a schedule on that date','err'); return; }
 
-  const entry={id:id||uid(),date,plate,driver,helpers,deliveries,notes,created:new Date().toISOString()};
-  if(id){ const i=scheds.findIndex(s=>s.id===id); if(i>-1) scheds[i]=entry; }
-  else scheds.push(entry);
+  const uid_  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  const entry = { id: id||uid_(), date, plate, driver, helpers, deliveries, notes, created: new Date().toISOString() };
 
-  save(KEYS.schedules,scheds);
+  const res = await apiSave('schedules', entry);
+  if (!res?.ok && !res?.data) { toast('Save failed — try again','err'); return; }
   closeModal('m-sched');
-  toast(id?'Schedule updated ✓':'Schedule added ✓','ok');
+  toast(id ? 'Schedule updated ✓' : 'Schedule added ✓', 'ok');
   renderCalendar();
 }
 
-function deleteSched(){
-  const id=document.getElementById('f-sched-id').value; if(!id) return;
-  confirm2('Delete this schedule?','This cannot be undone.',()=>{
-    save(KEYS.schedules,getSchedules().filter(s=>s.id!==id));
+async function deleteSched() {
+  const id = document.getElementById('f-sched-id').value; if (!id) return;
+  confirm2('Delete this schedule?', 'This cannot be undone.', async () => {
+    await apiDelete('schedules', id);
     closeModal('m-sched'); toast('Deleted','ok'); renderCalendar();
   });
 }
@@ -813,7 +1005,7 @@ function deleteSched(){
 // ══════════════════════════════════════════════════
 //  DASHBOARD
 // ══════════════════════════════════════════════════
-function renderDashboard(){
+async function renderDashboard() {
   const days  = getWeekDays();
   const ws    = dStr(days[0]), we = dStr(days[6]);
   const today = dStr(new Date());
@@ -821,34 +1013,33 @@ function renderDashboard(){
     `${fmtMD(days[0])} – ${fmtMD(days[6])} ${days[6].getFullYear()}`;
   document.getElementById('today-date').textContent = today;
 
-  const cMap   = Object.fromEntries(getCustomers().map(c=>[c.id,c]));
-  const scheds = getSchedules().filter(s=>s.date>=ws&&s.date<=we);
-  const todayS = scheds.filter(s=>s.date===today);
-
-  const totalPO  = scheds.reduce((s,x)=>(x.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),s),0);
-  const custSet  = new Set(scheds.flatMap(s=>(s.deliveries||[]).map(d=>d.cid)));
+  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const cMap   = Object.fromEntries(customers.map(c => [c.id, c]));
+  const scheds = schedules.filter(s => s.date >= ws && s.date <= we);
+  const todayS = scheds.filter(s => s.date === today);
+  const totalPO = scheds.reduce((s,x) => (x.deliveries||[]).reduce((a,d) => a+(parseInt(d.po)||0),s), 0);
+  const custSet = new Set(scheds.flatMap(s => (s.deliveries||[]).map(d => d.cid)));
 
   document.getElementById('k-routes').textContent = scheds.length;
   document.getElementById('k-trucks').textContent = new Set(scheds.map(s=>s.plate)).size;
   document.getElementById('k-pos').textContent    = totalPO;
   document.getElementById('k-custs').textContent  = custSet.size;
 
-  const tw=document.getElementById('today-wrap');
+  const tw = document.getElementById('today-wrap');
   tw.innerHTML = todayS.length ? dashTable(todayS,cMap) : '<div class="no-data">No deliveries today.</div>';
-  const ww=document.getElementById('week-wrap');
-  const sorted=[...scheds].sort((a,b)=>a.date.localeCompare(b.date)||a.plate.localeCompare(b.plate));
-  ww.innerHTML = sorted.length ? dashTable(sorted,cMap,true) : '<div class="no-data">No schedules this week.</div>';
+  const sorted = [...scheds].sort((a,b) => a.date.localeCompare(b.date)||a.plate.localeCompare(b.plate));
+  document.getElementById('week-wrap').innerHTML = sorted.length ? dashTable(sorted,cMap,true) : '<div class="no-data">No schedules this week.</div>';
 }
 
-function dashTable(arr,cMap,showDate=false){
+function dashTable(arr, cMap, showDate=false) {
   return `<table>
     <thead><tr>${showDate?'<th>Date</th>':''}<th>Plate</th><th>Customers &amp; POs</th><th>Driver</th><th>Helpers</th><th>Notes</th></tr></thead>
-    <tbody>${arr.map(s=>{
-      const delivSummary=(s.deliveries||[]).map(d=>`${esc(cMap[d.cid]?.name||'?')} <strong>(${d.po} PO${d.po!=1?'s':''})</strong>`).join('<br>');
+    <tbody>${arr.map(s => {
+      const ds = (s.deliveries||[]).map(d=>`${esc(cMap[d.cid]?.name||'?')} <strong>(${d.po} PO${d.po!=1?'s':''})</strong>`).join('<br>');
       return `<tr>
         ${showDate?`<td><span class="tag tb">${s.date}</span></td>`:''}
         <td><span class="tag" style="background:var(--alt);color:var(--accent)">🚛 ${esc(s.plate)}</span></td>
-        <td style="font-size:12px">${delivSummary||'—'}</td>
+        <td style="font-size:12px">${ds||'—'}</td>
         <td>${esc(s.driver||'—')}</td>
         <td style="color:var(--muted);font-size:12px">${esc((s.helpers||[]).filter(Boolean).join(', ')||'—')}</td>
         <td style="color:var(--muted);font-size:12px">${esc(s.notes||'')}</td>
@@ -859,31 +1050,24 @@ function dashTable(arr,cMap,showDate=false){
 // ══════════════════════════════════════════════════
 //  CUSTOMERS
 // ══════════════════════════════════════════════════
-const DAY_ORDER = ['MON','TUE','WED','THU','FRI'];
-
-function getDayChecks(){
-  return [...document.querySelectorAll('#day-checks input[type=checkbox]')]
-    .filter(cb=>cb.checked).map(cb=>cb.value);
+function getDayChecks() {
+  return [...document.querySelectorAll('#day-checks input[type=checkbox]')].filter(cb=>cb.checked).map(cb=>cb.value);
 }
-function setDayChecks(days=[]){
-  document.querySelectorAll('#day-checks input[type=checkbox]').forEach(cb=>{
+function setDayChecks(days=[]) {
+  document.querySelectorAll('#day-checks input[type=checkbox]').forEach(cb => {
     cb.checked = days.includes(cb.value);
     cb.closest('label').classList.toggle('checked', cb.checked);
-  });
-  // Wire toggle style
-  document.querySelectorAll('#day-checks input[type=checkbox]').forEach(cb=>{
     cb.onchange = () => cb.closest('label').classList.toggle('checked', cb.checked);
   });
 }
 
-function renderCustomersPage(){
-  const custs=getCustomers();
-  const tbody=document.getElementById('customers-body');
-  if(!custs.length){ tbody.innerHTML='<tr><td colspan="5"><div class="no-data">No customers yet. Click + Add Customer.</div></td></tr>'; return; }
-  const pal=['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#dc2626','#65a30d'];
-  tbody.innerHTML=custs.map((c,i)=>{
-    const days=(c.days||[]).join(' · ')||'—';
-    const dayBadges=(c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
+async function renderCustomersPage() {
+  const custs = await apiGet('customers');
+  const tbody = document.getElementById('customers-body');
+  if (!custs.length) { tbody.innerHTML='<tr><td colspan="5"><div class="no-data">No customers yet. Click + Add Customer.</div></td></tr>'; return; }
+  const pal = ['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#dc2626','#65a30d'];
+  tbody.innerHTML = custs.map((c,i) => {
+    const dayBadges = (c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
     return `<tr>
       <td><div class="en" style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:2px;background:${pal[i%8]};flex-shrink:0"></span>${esc(c.name)}
@@ -895,175 +1079,242 @@ function renderCustomersPage(){
     </tr>`;
   }).join('');
 }
-function openAddCustomer(){
-  document.getElementById('f-cust-id').value='';
-  document.getElementById('f-cname').value='';
-  document.getElementById('f-caddr').value='';
-  document.getElementById('f-ctime').value='';
+
+function openAddCustomer() {
+  document.getElementById('f-cust-id').value=''; document.getElementById('f-cname').value='';
+  document.getElementById('f-caddr').value=''; document.getElementById('f-ctime').value='';
   document.getElementById('m-customer-title').textContent='Add Customer';
   document.getElementById('btn-del-cust').style.display='none';
-  setDayChecks([]);
-  openModal('m-customer');
+  setDayChecks([]); openModal('m-customer');
 }
-function openEditCustomer(id){
-  const c=getCustomers().find(x=>x.id===id); if(!c) return;
-  document.getElementById('f-cust-id').value=c.id;
-  document.getElementById('f-cname').value=c.name;
-  document.getElementById('f-caddr').value=c.address||'';
-  document.getElementById('f-ctime').value=c.time||'';
+async function openEditCustomer(id) {
+  const custs = await apiGet('customers');
+  const c = custs.find(x=>x.id===id); if(!c) return;
+  document.getElementById('f-cust-id').value=c.id; document.getElementById('f-cname').value=c.name;
+  document.getElementById('f-caddr').value=c.address||''; document.getElementById('f-ctime').value=c.time||'';
   document.getElementById('m-customer-title').textContent='Edit Customer';
   document.getElementById('btn-del-cust').style.display='';
-  setDayChecks(c.days||[]);
-  openModal('m-customer');
+  setDayChecks(c.days||[]); openModal('m-customer');
 }
-function saveCustomer(){
-  const id      = document.getElementById('f-cust-id').value;
-  const name    = document.getElementById('f-cname').value.trim();
-  const address = document.getElementById('f-caddr').value.trim();
-  const time    = document.getElementById('f-ctime').value.trim();
-  const days    = getDayChecks();
-  if(!name){ toast('Customer name is required','err'); return; }
-  let custs=getCustomers();
-  if(id){ const i=custs.findIndex(c=>c.id===id); if(i>-1) custs[i]={...custs[i],name,address,days,time}; }
-  else custs.push({id:uid(),name,address,days,time});
-  save(KEYS.customers,custs);
+async function saveCustomer() {
+  const id=document.getElementById('f-cust-id').value;
+  const name=document.getElementById('f-cname').value.trim();
+  const address=document.getElementById('f-caddr').value.trim();
+  const time=document.getElementById('f-ctime').value.trim();
+  const days=getDayChecks();
+  if (!name) { toast('Customer name is required','err'); return; }
+  const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const custs = await apiGet('customers');
+  const item = id
+    ? {...custs.find(c=>c.id===id), name, address, days, time}
+    : {id:uid_(), name, address, days, time};
+  const res = await apiSave('customers', item);
+  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
   closeModal('m-customer'); toast(id?'Customer updated ✓':'Customer added ✓','ok');
-  populateFilters();
-  renderCustomersPage();
+  await populateFilters(); renderCustomersPage();
 }
-function deleteCustomer(){
+function deleteCustomer() {
   const id=document.getElementById('f-cust-id').value; if(!id) return;
-  confirm2('Delete this customer?','They will be removed from all schedules.',()=>{
-    save(KEYS.customers,getCustomers().filter(c=>c.id!==id));
+  confirm2('Delete this customer?','They will be removed from all schedules.',async()=>{
+    await apiDelete('customers', id);
     closeModal('m-customer'); toast('Deleted','ok');
-    populateFilters();
-    renderCustomersPage();
+    await populateFilters(); renderCustomersPage();
   });
 }
 
 // ══════════════════════════════════════════════════
 //  DRIVERS
 // ══════════════════════════════════════════════════
-function renderDriversPage(){
-  const drivers=getDrivers();
-  const tbody=document.getElementById('drivers-body');
-  if(!drivers.length){ tbody.innerHTML='<tr><td colspan="3"><div class="no-data">No drivers saved yet.</div></td></tr>'; return; }
-  tbody.innerHTML=drivers.map(d=>`<tr>
+async function renderDriversPage() {
+  const drivers = await apiGet('drivers');
+  const tbody = document.getElementById('drivers-body');
+  if (!drivers.length) { tbody.innerHTML='<tr><td colspan="3"><div class="no-data">No drivers saved yet.</div></td></tr>'; return; }
+  tbody.innerHTML = drivers.map(d=>`<tr>
     <td><div class="en">👤 ${esc(d.name)}</div></td>
     <td><div class="es">${esc(d.notes||'—')}</div></td>
     <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditDriver('${d.id}')">Edit</button></td>
   </tr>`).join('');
 }
-function openAddDriver(){
+function openAddDriver() {
   document.getElementById('f-driver-id').value=''; document.getElementById('f-dname').value=''; document.getElementById('f-dnotes').value='';
   document.getElementById('m-driver-title').textContent='Add Driver';
-  document.getElementById('btn-del-driver').style.display='none';
-  openModal('m-driver');
+  document.getElementById('btn-del-driver').style.display='none'; openModal('m-driver');
 }
-function openEditDriver(id){
-  const d=getDrivers().find(x=>x.id===id); if(!d) return;
+async function openEditDriver(id) {
+  const drivers=await apiGet('drivers'); const d=drivers.find(x=>x.id===id); if(!d) return;
   document.getElementById('f-driver-id').value=d.id; document.getElementById('f-dname').value=d.name; document.getElementById('f-dnotes').value=d.notes||'';
   document.getElementById('m-driver-title').textContent='Edit Driver';
-  document.getElementById('btn-del-driver').style.display='';
-  openModal('m-driver');
+  document.getElementById('btn-del-driver').style.display=''; openModal('m-driver');
 }
-function saveDriver(){
+async function saveDriver() {
   const id=document.getElementById('f-driver-id').value;
   const name=document.getElementById('f-dname').value.trim();
   const notes=document.getElementById('f-dnotes').value.trim();
-  if(!name){ toast('Driver name is required','err'); return; }
-  let drivers=getDrivers();
-  if(id){ const i=drivers.findIndex(d=>d.id===id); if(i>-1) drivers[i]={...drivers[i],name,notes}; }
-  else drivers.push({id:uid(),name,notes});
-  save(KEYS.drivers,drivers);
-  closeModal('m-driver'); toast(id?'Driver updated ✓':'Driver added ✓','ok');
-  renderDriversPage();
+  if (!name) { toast('Driver name is required','err'); return; }
+  const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const drivers=await apiGet('drivers');
+  const item=id ? {...drivers.find(d=>d.id===id), name, notes} : {id:uid_(),name,notes};
+  const res=await apiSave('drivers',item);
+  if(!res?.ok&&!res?.data){toast('Save failed','err');return;}
+  closeModal('m-driver'); toast(id?'Driver updated ✓':'Driver added ✓','ok'); renderDriversPage();
 }
-function deleteDriver(){
+function deleteDriver() {
   const id=document.getElementById('f-driver-id').value; if(!id) return;
-  confirm2('Delete this driver?','This only removes them from the list.',()=>{
-    save(KEYS.drivers,getDrivers().filter(d=>d.id!==id));
-    closeModal('m-driver'); toast('Deleted','ok'); renderDriversPage();
+  confirm2('Delete this driver?','This only removes them from the list.',async()=>{
+    await apiDelete('drivers',id); closeModal('m-driver'); toast('Deleted','ok'); renderDriversPage();
   });
 }
 
 // ══════════════════════════════════════════════════
 //  TRUCKS
 // ══════════════════════════════════════════════════
-function renderTrucksPage(){
-  const trucks=getTrucks();
+async function renderTrucksPage() {
+  const trucks=await apiGet('trucks');
   const tbody=document.getElementById('trucks-body');
-  if(!trucks.length){ tbody.innerHTML='<tr><td colspan="3"><div class="no-data">No trucks registered yet.</div></td></tr>'; return; }
+  if(!trucks.length){tbody.innerHTML='<tr><td colspan="3"><div class="no-data">No trucks registered yet.</div></td></tr>';return;}
   tbody.innerHTML=trucks.map(t=>`<tr>
     <td><span class="tag tb">🚛 ${esc(t.plate)}</span></td>
     <td><div class="es">${esc(t.desc||'—')}</div></td>
     <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditTruck('${t.id}')">Edit</button></td>
   </tr>`).join('');
 }
-function openAddTruck(){
+function openAddTruck() {
   document.getElementById('f-truck-id').value=''; document.getElementById('f-tplate').value=''; document.getElementById('f-tdesc').value='';
   document.getElementById('m-truck-title').textContent='Add Truck';
-  document.getElementById('btn-del-truck').style.display='none';
-  openModal('m-truck');
+  document.getElementById('btn-del-truck').style.display='none'; openModal('m-truck');
 }
-function openEditTruck(id){
-  const t=getTrucks().find(x=>x.id===id); if(!t) return;
+async function openEditTruck(id) {
+  const trucks=await apiGet('trucks'); const t=trucks.find(x=>x.id===id); if(!t) return;
   document.getElementById('f-truck-id').value=t.id; document.getElementById('f-tplate').value=t.plate; document.getElementById('f-tdesc').value=t.desc||'';
   document.getElementById('m-truck-title').textContent='Edit Truck';
-  document.getElementById('btn-del-truck').style.display='';
-  openModal('m-truck');
+  document.getElementById('btn-del-truck').style.display=''; openModal('m-truck');
 }
-function saveTruck(){
+async function saveTruck() {
   const id=document.getElementById('f-truck-id').value;
   const plate=document.getElementById('f-tplate').value.trim().toUpperCase();
   const desc=document.getElementById('f-tdesc').value.trim();
-  if(!plate){ toast('Plate number is required','err'); return; }
-  let trucks=getTrucks();
-  if(id){ const i=trucks.findIndex(t=>t.id===id); if(i>-1) trucks[i]={...trucks[i],plate,desc}; }
-  else trucks.push({id:uid(),plate,desc});
-  save(KEYS.trucks,trucks);
+  if(!plate){toast('Plate number is required','err');return;}
+  const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const trucks=await apiGet('trucks');
+  const item=id ? {...trucks.find(t=>t.id===id), plate, desc} : {id:uid_(),plate,desc};
+  const res=await apiSave('trucks',item);
+  if(!res?.ok&&!res?.data){toast('Save failed','err');return;}
   closeModal('m-truck'); toast(id?'Truck updated ✓':'Truck added ✓','ok');
-  populateFilters();
-  renderTrucksPage();
+  await populateFilters(); renderTrucksPage();
 }
-function deleteTruck(){
+function deleteTruck() {
   const id=document.getElementById('f-truck-id').value; if(!id) return;
-  confirm2('Delete this truck?','This only removes it from the saved list.',()=>{
-    save(KEYS.trucks,getTrucks().filter(t=>t.id!==id));
-    closeModal('m-truck'); toast('Deleted','ok');
-    populateFilters();
-    renderTrucksPage();
+  confirm2('Delete this truck?','This only removes it from the saved list.',async()=>{
+    await apiDelete('trucks',id); closeModal('m-truck'); toast('Deleted','ok');
+    await populateFilters(); renderTrucksPage();
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  USERS (admin only)
+// ══════════════════════════════════════════════════
+async function renderUsersPage() {
+  if (currentUser?.role !== 'admin') return;
+  const tbody = document.getElementById('users-body');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Loading users…</td></tr>';
+  try {
+    const res   = await fetch('/api/auth', { method:'POST', headers: authHdr(), body: JSON.stringify({ action:'list-users' }) });
+    const json  = await res.json();
+    const users = json.users || [];
+    if (!users.length) { tbody.innerHTML='<tr><td colspan="4"><div class="no-data">No users found.</div></td></tr>'; return; }
+    const roleBadge = r => r==='admin' ? '<span class="tag" style="background:#f5f3ff;color:#7c3aed">Admin</span>'
+      : r==='editor' ? '<span class="tag" style="background:#ecfeff;color:#0891b2">Editor</span>'
+      : '<span class="tag" style="background:#f3f4f6;color:#374151">HR Viewer</span>';
+    tbody.innerHTML = users.map(u=>`<tr>
+      <td><div class="en">${esc(u.username)}</div></td>
+      <td>${esc(u.name)}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditUser('${esc(u.id)}','${esc(u.username)}','${esc(u.name)}','${esc(u.role)}')">Edit</button></td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML='<tr><td colspan="4"><div class="no-data">Error loading users.</div></td></tr>';
+  }
+}
+
+function openAddUser() {
+  document.getElementById('f-user-id').value=''; document.getElementById('f-uname').value='';
+  document.getElementById('f-ufullname').value=''; document.getElementById('f-upass').value='';
+  document.getElementById('f-urole').value='editor';
+  document.getElementById('m-user-title').textContent='Add User';
+  document.getElementById('btn-del-user').style.display='none';
+  document.getElementById('f-upass-hint').style.display='none';
+  openModal('m-user');
+}
+
+function openEditUser(id, username, name, role) {
+  document.getElementById('f-user-id').value=id; document.getElementById('f-uname').value=username;
+  document.getElementById('f-ufullname').value=name; document.getElementById('f-upass').value='';
+  document.getElementById('f-urole').value=role;
+  document.getElementById('m-user-title').textContent='Edit User';
+  document.getElementById('btn-del-user').style.display = id===currentUser?.id ? 'none' : '';
+  document.getElementById('f-upass-hint').style.display='';
+  openModal('m-user');
+}
+
+async function saveUser() {
+  const userId      = document.getElementById('f-user-id').value;
+  const userUsername= document.getElementById('f-uname').value.trim();
+  const userName    = document.getElementById('f-ufullname').value.trim();
+  const userRole    = document.getElementById('f-urole').value;
+  const userPassword= document.getElementById('f-upass').value;
+  if (!userUsername||!userName) { toast('Username and full name are required','err'); return; }
+  if (!userId && !userPassword) { toast('Password is required for new users','err'); return; }
+  try {
+    const res = await fetch('/api/auth', {
+      method:'POST', headers: authHdr(),
+      body: JSON.stringify({ action:'save-user', userId, userUsername, userName, userRole, userPassword })
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error||'Save failed','err'); return; }
+    closeModal('m-user'); toast(userId ? 'User updated ✓' : 'User added ✓','ok');
+    renderUsersPage();
+  } catch(e) { toast('Error saving user','err'); }
+}
+
+function deleteUser() {
+  const id=document.getElementById('f-user-id').value; if(!id) return;
+  confirm2('Delete this user?','They will no longer be able to log in.',async()=>{
+    try {
+      const res=await fetch('/api/auth',{method:'POST',headers:authHdr(),body:JSON.stringify({action:'delete-user',userId:id})});
+      const json=await res.json();
+      if(!res.ok){toast(json.error||'Delete failed','err');return;}
+      closeModal('m-user'); toast('User deleted','ok'); renderUsersPage();
+    } catch(e){toast('Error deleting user','err');}
   });
 }
 
 // ══════════════════════════════════════════════════
 //  EXPORT CSV
 // ══════════════════════════════════════════════════
-function exportCSV(){
-  const days  = getWeekDays();
-  const ws    = dStr(days[0]), we = dStr(days[6]);
-  const cMap  = Object.fromEntries(getCustomers().map(c=>[c.id,c]));
-  const scheds= getSchedules().filter(s=>s.date>=ws&&s.date<=we).sort((a,b)=>a.date.localeCompare(b.date)||a.plate.localeCompare(b.plate));
-  if(!scheds.length){ toast('No schedules this week to export','err'); return; }
-  const rows=[['Date','Plate','Customer','PO Count','Driver','Helpers','Notes']];
-  scheds.forEach(s=>{
-    const delivs=s.deliveries||[];
-    if(!delivs.length){
-      rows.push([s.date,s.plate,'','','',s.driver,(s.helpers||[]).filter(Boolean).join(' / '),s.notes||'']);
+async function exportCSV() {
+  const days = getWeekDays();
+  const ws   = dStr(days[0]), we = dStr(days[6]);
+  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const cMap   = Object.fromEntries(customers.map(c=>[c.id,c]));
+  const scheds = schedules.filter(s=>s.date>=ws&&s.date<=we).sort((a,b)=>a.date.localeCompare(b.date)||a.plate.localeCompare(b.plate));
+  if (!scheds.length) { toast('No schedules this week to export','err'); return; }
+  const rows = [['Date','Plate','Customer','PO Count','Driver','Helpers','Notes']];
+  scheds.forEach(s => {
+    const delivs = s.deliveries||[];
+    if (!delivs.length) {
+      rows.push([s.date,s.plate,'','',s.driver,(s.helpers||[]).filter(Boolean).join(' / '),s.notes||'']);
     } else {
-      delivs.forEach((d,i)=>{
+      delivs.forEach((d,i) => {
         rows.push([s.date,s.plate,cMap[d.cid]?.name||'',d.po||0,
-          i===0?s.driver:'',
-          i===0?(s.helpers||[]).filter(Boolean).join(' / '):'',
-          i===0?s.notes||'':''
+          i===0?s.driver:'', i===0?(s.helpers||[]).filter(Boolean).join(' / '):'', i===0?s.notes||'':''
         ]);
       });
     }
   });
-  const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=`SII_Schedule_${ws}_to_${we}.csv`;
+  const csv = rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `SII_Schedule_${ws}_to_${we}.csv`;
   a.click(); URL.revokeObjectURL(a.href);
   toast('CSV exported ✓','ok');
 }
@@ -1071,32 +1322,49 @@ function exportCSV(){
 // ══════════════════════════════════════════════════
 //  UTILITIES
 // ══════════════════════════════════════════════════
-function esc(s){ const d=document.createElement('div'); d.appendChild(document.createTextNode(s||'')); return d.innerHTML; }
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-function confirm2(title,msg,cb){
-  document.getElementById('m-confirm-title').textContent=title;
-  document.getElementById('m-confirm-msg').textContent=msg;
-  document.getElementById('m-confirm-ok').onclick=()=>{ closeModal('m-confirm'); cb(); };
+function esc(s) { const d=document.createElement('div'); d.appendChild(document.createTextNode(s||'')); return d.innerHTML; }
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function confirm2(title, msg, cb) {
+  document.getElementById('m-confirm-title').textContent = title;
+  document.getElementById('m-confirm-msg').textContent   = msg;
+  document.getElementById('m-confirm-ok').onclick = () => { closeModal('m-confirm'); cb(); };
   openModal('m-confirm');
 }
 let _tt;
-function toast(msg,type=''){
+function toast(msg, type='') {
   const el=document.getElementById('toast');
   el.textContent=msg; el.className='show '+(type||'');
   clearTimeout(_tt); _tt=setTimeout(()=>el.className='',3000);
 }
 
-// ── Init
-document.querySelectorAll('.modal-bg').forEach(bg=>{
-  bg.addEventListener('click',e=>{ if(e.target===bg) bg.classList.remove('open'); });
+// Close modals on backdrop click
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if(e.target===bg) bg.classList.remove('open'); });
 });
-// Wire day checkbox styles on page load
-document.querySelectorAll('#day-checks input[type=checkbox]').forEach(cb=>{
+// Day checkbox styles
+document.querySelectorAll('#day-checks input[type=checkbox]').forEach(cb => {
   cb.onchange = () => cb.closest('label').classList.toggle('checked', cb.checked);
 });
-populateFilters(); // populate filters once on load (not inside renderCalendar)
-renderCalendar();
+
+// ══════════════════════════════════════════════════
+//  INIT — verify token or show login
+// ══════════════════════════════════════════════════
+(async () => {
+  if (authToken) {
+    try {
+      const res  = await fetch('/api/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'verify', token: authToken }) });
+      const json = await res.json();
+      if (res.ok && json.user) {
+        currentUser = json.user;
+        await showApp();
+        return;
+      }
+    } catch(e) { /* fall through to login */ }
+  }
+  // Show login screen
+  document.getElementById('login-screen').classList.remove('hidden');
+})();
 </script>
 </body>
 </html>
