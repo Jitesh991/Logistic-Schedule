@@ -2,7 +2,10 @@
   "name": "sii-logistics",
   "version": "1.0.0",
   "description": "Sunbeams Impex Inc. Logistics Schedule",
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
-    "@vercel/blob": "^0.27.0"
+    "@vercel/blob": "latest"
   }
 }
