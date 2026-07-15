@@ -42,7 +42,6 @@ async function writeCol(col, data) {
   const { blobs } = await list({ prefix: `sii/${col}.json` });
   if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
   await put(`sii/${col}.json`, JSON.stringify(data), {
-    access: 'private',
     addRandomSuffix: false,
     contentType: 'application/json'
   });
