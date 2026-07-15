@@ -25,9 +25,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .login-box{background:#fff;border-radius:16px;padding:40px;width:360px;max-width:94vw;
   box-shadow:0 24px 80px rgba(0,0,0,.35)}
 .login-logo{text-align:center;margin-bottom:28px}
-.login-logo .ll-icon{width:72px;height:72px;border-radius:14px;
-  display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;overflow:hidden;background:#fff;
-  box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.login-logo .ll-icon{width:220px;height:67px;border-radius:10px;
+  display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;overflow:hidden;
+  box-shadow:0 2px 12px rgba(0,0,0,.2)}
 .login-logo h1{font-size:20px;font-weight:800;letter-spacing:-.4px}
 .login-logo p{font-size:12px;color:var(--muted);margin-top:3px}
 .login-err{background:var(--red-lt);color:var(--red);border:1px solid #fecaca;border-radius:8px;
@@ -43,8 +43,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   justify-content:space-between;position:sticky;top:0;z-index:200;
   border-bottom:3px solid var(--accent)}
 .brand{display:flex;align-items:center;gap:10px}
-.bl{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;
-  justify-content:center;overflow:hidden;background:#fff;flex-shrink:0}
+.bl{height:34px;width:auto;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;overflow:hidden;flex-shrink:0}
 .bn{font-size:15px;font-weight:700}.bs{font-size:11px;color:#8b92b0}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .user-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);
@@ -234,12 +234,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 /* Loading overlay */
 .loading-row td{text-align:center;padding:40px;color:var(--muted);font-size:13px}
 
-@media print{
-  #login-screen,.topbar,.layout aside,.ph-act,.cal-bar,.modal-bg,#toast{display:none!important}
-  .layout{display:block}main{padding:0}
-  .sg-wrap{box-shadow:none;border:1px solid #ccc;border-radius:0}
-  .sg th,.sg td{font-size:9px}
-}
+/* Print styles removed — use Save PNG button instead */
 </style>
 </head>
 <body>
@@ -248,7 +243,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">
-      <div class="ll-icon"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0M2y6ur87RMKbQBNN5BCOG54F6dNJFLnJQZ4RsHHY0WlI7ECbPzpk0ymmwuZS_qjJp55sSdRXWWfMG17NN2g1fyQdIXx0yvpEkfM3luuIPzfQKgjTqw8XZfZgPEuTN4Yv2Jm-IS76_OpLaKy5OW9vkMObzTMhvx-BsM8bbx02b4qNZb5yPnTl_c9zngqZbHvNdKY4dzliz7Rwc608_JyEmO08vktaLtwZIKRv6=w1280" alt="SII" style="width:72px;height:72px;object-fit:contain"></div>
+      <div class="ll-icon"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0VO6iUPsF7XelzIUjITEQe_FUAra7zosvNzW6mI_bsnR_a5_qOJqPynTBdmwE0cq0Rox-_OhCOdUlxQHD9sCdH5pKYYLMXYcKlx27GF0OElUPRuK1zrXH9YztnQTE_bvMkMrNAindTli0-hIX4z8s9LgS_3yWwWJZAYyhbaN5uDIprWjeGBXKItObX7tqBkBY0MjZ4kgPQv_-ftnECXvVT6AFNW5RcMclsfeZ3Rs0=w1280" alt="Sunbeams Impex Inc." style="width:220px;height:67px;object-fit:cover"></div>
       <h1>SII Logistics</h1>
       <p>Sunbeams Impex Inc. — Schedule System</p>
     </div>
@@ -268,8 +263,8 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <!-- ════ APP ════ -->
 <div class="topbar">
   <div class="brand">
-    <div class="bl"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0M2y6ur87RMKbQBNN5BCOG54F6dNJFLnJQZ4RsHHY0WlI7ECbPzpk0ymmwuZS_qjJp55sSdRXWWfMG17NN2g1fyQdIXx0yvpEkfM3luuIPzfQKgjTqw8XZfZgPEuTN4Yv2Jm-IS76_OpLaKy5OW9vkMObzTMhvx-BsM8bbx02b4qNZb5yPnTl_c9zngqZbHvNdKY4dzliz7Rwc608_JyEmO08vktaLtwZIKRv6=w1280" alt="SII" style="width:36px;height:36px;object-fit:contain"></div>
-    <div><div class="bn">SII Logistics Schedule</div><div class="bs" style="color:#ffaa62">Sunbeams Impex Inc.</div></div>
+    <div class="bl"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0VO6iUPsF7XelzIUjITEQe_FUAra7zosvNzW6mI_bsnR_a5_qOJqPynTBdmwE0cq0Rox-_OhCOdUlxQHD9sCdH5pKYYLMXYcKlx27GF0OElUPRuK1zrXH9YztnQTE_bvMkMrNAindTli0-hIX4z8s9LgS_3yWwWJZAYyhbaN5uDIprWjeGBXKItObX7tqBkBY0MjZ4kgPQv_-ftnECXvVT6AFNW5RcMclsfeZ3Rs0=w1280" alt="SII" style="height:34px;width:auto;object-fit:contain"></div>
+    <div><div class="bn" style="color:#ffaa62">Logistics Schedule</div></div>
   </div>
   <div class="topbar-right">
     <div class="user-pill" id="user-pill" style="display:none">
@@ -278,7 +273,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <span class="role-badge" id="role-badge">—</span>
     </div>
     <button class="btn btn-o btn-sm role-edit" onclick="exportCSV()">⬇ Export CSV</button>
-    <button class="btn btn-o btn-sm role-edit" onclick="window.print()">🖨 Print</button>
+    <button class="btn btn-o btn-sm role-edit" id="btn-png" onclick="exportPNG()">📷 Save PNG</button>
     <button class="btn btn-o btn-sm" id="btn-logout" onclick="logout()" style="display:none">Sign Out</button>
   </div>
 </div>
@@ -1472,6 +1467,95 @@ async function exportCSV() {
   a.download = `SII_Schedule_${ws}_to_${we}.csv`;
   a.click(); URL.revokeObjectURL(a.href);
   toast('CSV exported ✓','ok');
+}
+
+// ══════════════════════════════════════════════════
+//  PNG EXPORT
+// ══════════════════════════════════════════════════
+async function exportPNG() {
+  // Only works from the Schedule Grid page
+  const calPage = document.getElementById('page-cal');
+  if (!calPage.classList.contains('active')) {
+    toast('Switch to Schedule Grid first, then save PNG','err'); return;
+  }
+
+  const btn = document.getElementById('btn-png');
+  btn.textContent = '⏳ Capturing…'; btn.disabled = true;
+
+  try {
+    // Load html2canvas on demand
+    if (!window.html2canvas) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    // Capture the calendar bar + grid together
+    const calBar  = document.querySelector('.cal-bar');
+    const sgWrap  = document.querySelector('.sg-wrap');
+    const calLbl  = document.getElementById('cal-lbl').textContent;
+
+    // Build a temporary wrapper so both sections render as one image
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;background:#f5f4f2;padding:16px;font-family:Segoe UI,system-ui,sans-serif;min-width:' + (sgWrap.scrollWidth + 32) + 'px';
+
+    // Header row
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 0';
+    header.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0VO6iUPsF7XelzIUjITEQe_FUAra7zosvNzW6mI_bsnR_a5_qOJqPynTBdmwE0cq0Rox-_OhCOdUlxQHD9sCdH5pKYYLMXYcKlx27GF0OElUPRuK1zrXH9YztnQTE_bvMkMrNAindTli0-hIX4z8s9LgS_3yWwWJZAYyhbaN5uDIprWjeGBXKItObX7tqBkBY0MjZ4kgPQv_-ftnECXvVT6AFNW5RcMclsfeZ3Rs0=w1280"
+          style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff" crossorigin="anonymous">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:#1a1a1a">SII Logistics Schedule</div>
+          <div style="font-size:11px;color:#a8a8aa">Sunbeams Impex Inc.</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:13px;font-weight:700;color:#1a1a1a">${calLbl}</div>
+        <div style="font-size:11px;color:#a8a8aa">Generated: ${new Date().toLocaleDateString('en-PH',{dateStyle:'medium'})}</div>
+      </div>`;
+
+    // Clone the cal-bar and sg-wrap
+    const calBarClone = calBar.cloneNode(true);
+    calBarClone.style.cssText += ';border-radius:10px 10px 0 0;margin-bottom:0';
+    const sgClone = sgWrap.cloneNode(true);
+    sgClone.style.cssText += ';border-radius:0 0 10px 10px;overflow:visible';
+
+    wrapper.appendChild(header);
+    wrapper.appendChild(calBarClone);
+    wrapper.appendChild(sgClone);
+    document.body.appendChild(wrapper);
+
+    const canvas = await window.html2canvas(wrapper, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#f5f4f2',
+      scrollX: 0, scrollY: 0,
+      width: wrapper.scrollWidth,
+      height: wrapper.scrollHeight
+    });
+
+    document.body.removeChild(wrapper);
+
+    // Download
+    const days = getWeekDays();
+    const filename = `SII_Schedule_${dStr(days[0])}_to_${dStr(days[6])}.png`;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = filename;
+    a.click();
+    toast('PNG saved ✓', 'ok');
+  } catch(e) {
+    console.error(e);
+    toast('PNG export failed — try a different browser','err');
+  } finally {
+    btn.textContent = '📷 Save PNG'; btn.disabled = false;
+  }
 }
 
 // ══════════════════════════════════════════════════
