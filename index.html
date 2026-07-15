@@ -7,10 +7,10 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f0f2f7;--surface:#fff;--border:#e2e6f0;--text:#1a1e2e;
-  --muted:#7b82a0;--accent:#2563eb;--alt:#eff4ff;
-  --green:#16a34a;--green-lt:#f0fdf4;--red:#dc2626;--red-lt:#fef2f2;
-  --amber:#d97706;--amber-lt:#fffbeb;--purple:#7c3aed;--purple-lt:#f5f3ff;
+  --bg:#f5f4f2;--surface:#fff;--border:#e5e3e0;--text:#1a1a1a;
+  --muted:#a8a8aa;--accent:#e53e30;--alt:#fff1f0;
+  --green:#16a34a;--green-lt:#f0fdf4;--red:#e53e30;--red-lt:#fff1f0;
+  --amber:#ffaa62;--amber-lt:#fff7ed;--purple:#7c3aed;--purple-lt:#f5f3ff;
   --sat-bg:#fce7f3;--sat-fg:#be185d;
   --sun-bg:#fee2e2;--sun-fg:#991b1b;
   --hol-bg:#fef9c3;--hol-fg:#854d0e;
@@ -19,14 +19,15 @@
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* ── Login Screen ── */
-#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1a1e2e 0%,#2563eb 100%);
+#login-screen{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a1a 0%,#e53e30 100%);
   z-index:9000;display:flex;align-items:center;justify-content:center}
 #login-screen.hidden{display:none}
 .login-box{background:#fff;border-radius:16px;padding:40px;width:360px;max-width:94vw;
   box-shadow:0 24px 80px rgba(0,0,0,.35)}
 .login-logo{text-align:center;margin-bottom:28px}
-.login-logo .ll-icon{width:56px;height:56px;background:var(--accent);border-radius:14px;
-  display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:12px}
+.login-logo .ll-icon{width:72px;height:72px;border-radius:14px;
+  display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;overflow:hidden;background:#fff;
+  box-shadow:0 2px 12px rgba(0,0,0,.1)}
 .login-logo h1{font-size:20px;font-weight:800;letter-spacing:-.4px}
 .login-logo p{font-size:12px;color:var(--muted);margin-top:3px}
 .login-err{background:var(--red-lt);color:var(--red);border:1px solid #fecaca;border-radius:8px;
@@ -34,27 +35,28 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .login-err.show{display:block}
 .login-btn{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:9px;
   font-size:14px;font-weight:700;cursor:pointer;transition:background .12s;margin-top:4px}
-.login-btn:hover{background:#1d4ed8}
+.login-btn:hover{background:#c0392b}
 .login-btn:disabled{opacity:.6;cursor:not-allowed}
 
 /* ── Topbar ── */
-.topbar{background:var(--text);color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;
-  justify-content:space-between;position:sticky;top:0;z-index:200}
+.topbar{background:#1a1a1a;color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:200;
+  border-bottom:3px solid var(--accent)}
 .brand{display:flex;align-items:center;gap:10px}
-.bl{width:28px;height:28px;background:var(--accent);border-radius:6px;display:flex;align-items:center;
-  justify-content:center;font-size:15px}
+.bl{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;overflow:hidden;background:#fff;flex-shrink:0}
 .bn{font-size:15px;font-weight:700}.bs{font-size:11px;color:#8b92b0}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .user-pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);
   border-radius:20px;padding:4px 12px 4px 8px}
-.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:var(--accent);
+.user-pill .avatar{width:24px;height:24px;border-radius:50%;background:#ffaa62;color:#7a3e00;
   display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
 .user-pill .uname{font-size:12px;font-weight:700}
 .role-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;
   background:rgba(255,255,255,.15);letter-spacing:.3px}
-.role-badge.admin{background:#7c3aed}
-.role-badge.editor{background:#0891b2}
-.role-badge.viewer{background:#374151}
+.role-badge.admin{background:#e53e30}
+.role-badge.editor{background:#ffaa62;color:#7a3e00}
+.role-badge.viewer{background:#a8a8aa;color:#fff}
 
 /* ── Layout ── */
 .layout{display:grid;grid-template-columns:210px 1fr;min-height:calc(100vh - 52px)}
@@ -80,7 +82,7 @@ main{padding:24px;overflow-y:auto}
 /* ── Buttons ── */
 .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;
   transition:all .12s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.btn-p{background:var(--accent);color:#fff}.btn-p:hover{background:#1d4ed8}
+.btn-p{background:var(--accent);color:#fff}.btn-p:hover{background:#c0392b}
 .btn-o{background:#fff;color:var(--text);border:1.5px solid var(--border)}.btn-o:hover{border-color:var(--accent);color:var(--accent)}
 .btn-r{background:var(--red);color:#fff}.btn-r:hover{background:#b91c1c}
 .btn-sm{padding:6px 12px;font-size:12px}
@@ -246,7 +248,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">
-      <div class="ll-icon">🚛</div>
+      <div class="ll-icon"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0M2y6ur87RMKbQBNN5BCOG54F6dNJFLnJQZ4RsHHY0WlI7ECbPzpk0ymmwuZS_qjJp55sSdRXWWfMG17NN2g1fyQdIXx0yvpEkfM3luuIPzfQKgjTqw8XZfZgPEuTN4Yv2Jm-IS76_OpLaKy5OW9vkMObzTMhvx-BsM8bbx02b4qNZb5yPnTl_c9zngqZbHvNdKY4dzliz7Rwc608_JyEmO08vktaLtwZIKRv6=w1280" alt="SII" style="width:72px;height:72px;object-fit:contain"></div>
       <h1>SII Logistics</h1>
       <p>Sunbeams Impex Inc. — Schedule System</p>
     </div>
@@ -266,8 +268,8 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <!-- ════ APP ════ -->
 <div class="topbar">
   <div class="brand">
-    <div class="bl">🚛</div>
-    <div><div class="bn">SII Logistics Schedule</div><div class="bs">Sunbeams Impex Inc.</div></div>
+    <div class="bl"><img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0M2y6ur87RMKbQBNN5BCOG54F6dNJFLnJQZ4RsHHY0WlI7ECbPzpk0ymmwuZS_qjJp55sSdRXWWfMG17NN2g1fyQdIXx0yvpEkfM3luuIPzfQKgjTqw8XZfZgPEuTN4Yv2Jm-IS76_OpLaKy5OW9vkMObzTMhvx-BsM8bbx02b4qNZb5yPnTl_c9zngqZbHvNdKY4dzliz7Rwc608_JyEmO08vktaLtwZIKRv6=w1280" alt="SII" style="width:36px;height:36px;object-fit:contain"></div>
+    <div><div class="bn">SII Logistics Schedule</div><div class="bs" style="color:#ffaa62">Sunbeams Impex Inc.</div></div>
   </div>
   <div class="topbar-right">
     <div class="user-pill" id="user-pill" style="display:none">
