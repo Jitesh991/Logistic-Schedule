@@ -1470,104 +1470,219 @@ async function exportCSV() {
 }
 
 // ══════════════════════════════════════════════════
-//  PNG EXPORT
+//  PNG EXPORT  — pure Canvas 2D, no html2canvas
 // ══════════════════════════════════════════════════
 async function exportPNG() {
-  // Only works from the Schedule Grid page
   const calPage = document.getElementById('page-cal');
   if (!calPage.classList.contains('active')) {
     toast('Switch to Schedule Grid first, then save PNG','err'); return;
   }
-
   const btn = document.getElementById('btn-png');
-  btn.textContent = '⏳ Capturing…'; btn.disabled = true;
+  btn.textContent = '⏳ Building…'; btn.disabled = true;
 
   try {
-    // Load html2canvas on demand
-    if (!window.html2canvas) {
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload = resolve; s.onerror = reject;
-        document.head.appendChild(s);
-      });
+    const days = getWeekDays();
+    const [schedules, trucks, customers, holidays] = await Promise.all([
+      apiGet('schedules'), apiGet('trucks'), apiGet('customers'), apiGet('holidays')
+    ]);
+
+    const cMap       = Object.fromEntries(customers.map(c => [c.id, c]));
+    const holidayMap = Object.fromEntries(holidays.map(h => [h.date, h.name]));
+    const today      = dStr(new Date());
+    const ws = dStr(days[0]), we = dStr(days[6]);
+    const lookup = {};
+    schedules.filter(s => s.date >= ws && s.date <= we)
+             .forEach(s => { lookup[s.plate+'_'+s.date] = s; });
+
+    // ── Canvas ──────────────────────────────────────
+    const W = 1920, H = 1080;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,W,H);
+
+    // ── Layout constants ─────────────────────────────
+    const PLATE_W = 185;
+    const N       = 7;                              // Mon–Sun
+    const DAY_W   = Math.floor((W - PLATE_W) / N);
+    const TITLE_H = 54;
+    const COL_H   = 52;
+    const SEP_H   = 5;
+    const BODY_H  = H - TITLE_H - COL_H;
+
+    // Per-truck: how many delivery rows needed?
+    const truckRows = trucks.map(t =>
+      Math.max(...days.map(d => {
+        const s = lookup[t.plate+'_'+dStr(d)];
+        return s ? (s.deliveries||[]).length : 0;
+      }), 2)
+    );
+    const totalRows = truckRows.reduce((a,b)=>a+b,0) || 1;
+    const ROW_H = Math.floor((BODY_H - trucks.length * SEP_H) / totalRows);
+
+    // Helper: clip text with ellipsis to maxW pixels
+    const clip = (txt, maxW) => {
+      if (!txt) return '';
+      if (ctx.measureText(txt).width <= maxW) return txt;
+      let s = txt;
+      while (s.length > 1 && ctx.measureText(s+'…').width > maxW) s = s.slice(0,-1);
+      return s+'…';
+    };
+    const cell = (x,y,w,h,fill,stroke='#C8C8C8',lw=0.8) => {
+      ctx.fillStyle=fill; ctx.fillRect(x,y,w,h);
+      ctx.save(); ctx.strokeStyle=stroke; ctx.lineWidth=lw;
+      ctx.strokeRect(x+lw/2,y+lw/2,w-lw,h-lw); ctx.restore();
+    };
+
+    let y = 0;
+
+    // ── TITLE BAR ────────────────────────────────────
+    // Brand block (red, left)
+    ctx.fillStyle='#e53e30'; ctx.fillRect(0,y,PLATE_W+DAY_W,TITLE_H);
+    ctx.fillStyle='#FFFFFF';
+    ctx.font='bold 14px "Segoe UI",Arial,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('SUNBEAMS IMPEX INC.', (PLATE_W+DAY_W)/2, y+TITLE_H/2-8);
+    ctx.font='11px "Segoe UI",Arial,sans-serif';
+    ctx.fillText('logistics schedule', (PLATE_W+DAY_W)/2, y+TITLE_H/2+10);
+
+    // Title block (dark, rest of width)
+    ctx.fillStyle='#2B2B2B'; ctx.fillRect(PLATE_W+DAY_W,y,W-PLATE_W-DAY_W,TITLE_H);
+    ctx.fillStyle='#FFFFFF';
+    ctx.font='bold 24px "Segoe UI",Arial,sans-serif';
+    ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.fillText('SII WEEKLY DELIVERY SCHEDULE', PLATE_W+DAY_W+20, y+TITLE_H/2-9);
+    ctx.fillStyle='#ffaa62';
+    ctx.font='13px "Segoe UI",Arial,sans-serif';
+    const wLabel = days[0].toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}).toUpperCase()
+      +'  –  '+days[6].toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}).toUpperCase();
+    ctx.fillText(wLabel, PLATE_W+DAY_W+20, y+TITLE_H/2+12);
+    ctx.fillStyle='#666'; ctx.font='11px "Segoe UI",Arial,sans-serif';
+    ctx.textAlign='right';
+    ctx.fillText('Generated '+new Date().toLocaleDateString('en-PH',{dateStyle:'medium'}), W-14, y+TITLE_H/2);
+    y += TITLE_H;
+
+    // ── COLUMN HEADERS ───────────────────────────────
+    cell(0,y,PLATE_W,COL_H,'#404040','#555');
+    ctx.fillStyle='#FFFFFF'; ctx.font='bold 12px "Segoe UI",Arial,sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('DEL. TRUCK / VAN', PLATE_W/2, y+COL_H/2);
+
+    for (let i=0;i<N;i++) {
+      const d=days[i], ds=dStr(d), dx=PLATE_W+i*DAY_W;
+      const hn=holidayMap[ds];
+      let bg,fg;
+      if      (isSun(d)) { bg='#fee2e2'; fg='#991b1b'; }
+      else if (isSat(d)) { bg='#fce7f3'; fg='#be185d'; }
+      else if (hn)       { bg='#fef9c3'; fg='#854d0e'; }
+      else if (ds===today){ bg='#dbeafe'; fg='#1e40af'; }
+      else               { bg='#E5E5E5'; fg='#1a1a1a'; }
+      cell(dx,y,DAY_W,COL_H,bg,'#BBBBBB');
+      ctx.fillStyle=fg;
+      ctx.font='bold 13px "Segoe UI",Arial,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(d.toLocaleDateString('en-PH',{weekday:'long'}).toUpperCase(), dx+DAY_W/2, y+COL_H/2-9);
+      ctx.font='11px "Segoe UI",Arial,sans-serif';
+      ctx.fillText(d.toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}), dx+DAY_W/2, y+COL_H/2+9);
+    }
+    y += COL_H;
+
+    // ── TRUCK ROWS ───────────────────────────────────
+    for (let ti=0;ti<trucks.length;ti++) {
+      const truck=trucks[ti], maxRows=truckRows[ti], tH=ROW_H*maxRows;
+
+      // Dark separator bar
+      ctx.fillStyle='#2B2B2B'; ctx.fillRect(0,y,W,SEP_H); y+=SEP_H;
+
+      // Plate cell
+      cell(0,y,PLATE_W,tH,'#F7F7F7','#BBBBBB');
+      ctx.fillStyle='#1a1a1a'; ctx.font='bold 17px "Segoe UI",Arial,sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(truck.plate, PLATE_W/2, y+tH/2-(truck.desc?9:0));
+      if (truck.desc) {
+        ctx.fillStyle='#888'; ctx.font='11px "Segoe UI",Arial,sans-serif';
+        ctx.fillText('('+truck.desc+')', PLATE_W/2, y+tH/2+12);
+      }
+
+      // Day cells
+      for (let i=0;i<N;i++) {
+        const d=days[i], ds=dStr(d), dx=PLATE_W+i*DAY_W;
+        const s=lookup[truck.plate+'_'+ds], hn=holidayMap[ds];
+        let bg=i%2===0?'#FFFFFF':'#FAFAFA';
+        if (isSun(d)) bg='#fee2e2';
+        else if (isSat(d)) bg='#fce7f3';
+        else if (hn&&!s) bg='#fef9c3';
+        else if (ds===today) bg='#f0f6ff';
+        cell(dx,y,DAY_W,tH,bg,'#CCCCCC');
+
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+
+        if (isSun(d)) {
+          ctx.fillStyle='#991b1b'; ctx.font='bold 13px "Segoe UI",Arial,sans-serif';
+          ctx.fillText('REST', dx+DAY_W/2, y+tH/2);
+        } else if (isSat(d)) {
+          ctx.fillStyle='#be185d'; ctx.font='bold 13px "Segoe UI",Arial,sans-serif';
+          ctx.fillText('SAT', dx+DAY_W/2, y+tH/2);
+        } else if (hn&&!s) {
+          ctx.fillStyle='#854d0e'; ctx.font='bold 12px "Segoe UI",Arial,sans-serif';
+          ctx.fillText('HOLIDAY', dx+DAY_W/2, y+tH/2-8);
+          ctx.font='11px "Segoe UI",Arial,sans-serif';
+          ctx.fillText(hn.toUpperCase(), dx+DAY_W/2, y+tH/2+9);
+        } else if (s) {
+          const notes=(s.notes||'').toUpperCase();
+          if (notes.includes('CODING')) {
+            // CODING cell — yellow like reference
+            ctx.fillStyle='#FFF176'; ctx.fillRect(dx,y,DAY_W,tH);
+            ctx.fillStyle='#e53e30'; ctx.font='bold 15px "Segoe UI",Arial,sans-serif';
+            ctx.textAlign='center'; ctx.textBaseline='middle';
+            ctx.fillText('CODING', dx+DAY_W/2, y+tH/2);
+          } else {
+            const delivs = (s.deliveries||[]).filter(dv=>dv.cid);
+            for (let di=0;di<delivs.length&&di<maxRows;di++) {
+              const dv=delivs[di], c=cMap[dv.cid];
+              const nm=(c?c.name:'—').toUpperCase();
+              const po=parseInt(dv.po)||0;
+              const ry=y+di*ROW_H;
+              // Row divider
+              if (di>0) {
+                ctx.save(); ctx.strokeStyle='#E4E4E4'; ctx.lineWidth=0.5;
+                ctx.beginPath(); ctx.moveTo(dx+3,ry); ctx.lineTo(dx+DAY_W-3,ry); ctx.stroke(); ctx.restore();
+              }
+              const isSM=/^SM\b/.test(nm);
+              ctx.fillStyle=isSM?'#e53e30':'#1a1a1a';
+              ctx.font=(isSM?'bold ':'')+Math.max(10,Math.min(13,ROW_H-8))+'px "Segoe UI",Arial,sans-serif';
+              ctx.textBaseline='middle';
+              const poTxt='('+po+')'+(dv.pullout?' ↩':'');
+              const poW=ctx.measureText(poTxt).width+10;
+              ctx.textAlign='left';
+              ctx.fillText(clip(nm,DAY_W-poW-14), dx+6, ry+ROW_H/2);
+              ctx.textAlign='right'; ctx.fillStyle=isSM?'#e53e30':'#777';
+              ctx.font=Math.max(10,Math.min(12,ROW_H-8))+'px "Segoe UI",Arial,sans-serif';
+              ctx.fillText(poTxt, dx+DAY_W-6, ry+ROW_H/2);
+            }
+            // Driver footer if room
+            if (s.driver && tH > delivs.length*ROW_H+14) {
+              ctx.fillStyle='#AAAAAA'; ctx.font='10px "Segoe UI",Arial,sans-serif';
+              ctx.textAlign='left'; ctx.textBaseline='middle';
+              ctx.fillText('👤 '+s.driver, dx+6, y+tH-12);
+            }
+          }
+        }
+      }
+      y += tH;
     }
 
-    // Capture the calendar bar + grid together
-    const calBar  = document.querySelector('.cal-bar');
-    const sgWrap  = document.querySelector('.sg-wrap');
-    const calLbl  = document.getElementById('cal-lbl').textContent;
+    // Outer border
+    ctx.save(); ctx.strokeStyle='#2B2B2B'; ctx.lineWidth=3;
+    ctx.strokeRect(1.5,1.5,W-3,H-3); ctx.restore();
 
-    // Build a temporary wrapper so both sections render as one image
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;background:#f5f4f2;padding:16px;font-family:Segoe UI,system-ui,sans-serif;min-width:' + (sgWrap.scrollWidth + 32) + 'px';
-
-    // Header row
-    const header = document.createElement('div');
-    header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:8px 0';
-    header.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px">
-        <img src="https://lh7-us.googleusercontent.com/sitesv-images-rt/ACHe0d0VO6iUPsF7XelzIUjITEQe_FUAra7zosvNzW6mI_bsnR_a5_qOJqPynTBdmwE0cq0Rox-_OhCOdUlxQHD9sCdH5pKYYLMXYcKlx27GF0OElUPRuK1zrXH9YztnQTE_bvMkMrNAindTli0-hIX4z8s9LgS_3yWwWJZAYyhbaN5uDIprWjeGBXKItObX7tqBkBY0MjZ4kgPQv_-ftnECXvVT6AFNW5RcMclsfeZ3Rs0=w1280"
-          style="width:36px;height:36px;object-fit:contain;border-radius:6px;background:#fff" crossorigin="anonymous">
-        <div>
-          <div style="font-size:16px;font-weight:800;color:#1a1a1a">SII Logistics Schedule</div>
-          <div style="font-size:11px;color:#a8a8aa">Sunbeams Impex Inc.</div>
-        </div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:13px;font-weight:700;color:#1a1a1a">${calLbl}</div>
-        <div style="font-size:11px;color:#a8a8aa">Generated: ${new Date().toLocaleDateString('en-PH',{dateStyle:'medium'})}</div>
-      </div>`;
-
-    // Clone the cal-bar and sg-wrap
-    const calBarClone = calBar.cloneNode(true);
-    calBarClone.style.cssText += ';border-radius:10px 10px 0 0;margin-bottom:0';
-    const sgClone = sgWrap.cloneNode(true);
-    sgClone.style.cssText += ';border-radius:0 0 10px 10px;overflow:visible';
-
-    wrapper.appendChild(header);
-    wrapper.appendChild(calBarClone);
-    wrapper.appendChild(sgClone);
-    document.body.appendChild(wrapper);
-
-    const rawCanvas = await window.html2canvas(wrapper, {
-      scale: 3,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: '#f5f4f2',
-      scrollX: 0, scrollY: 0,
-      width: wrapper.scrollWidth,
-      height: wrapper.scrollHeight
-    });
-
-    document.body.removeChild(wrapper);
-
-    // Output at 16:9 — 1920 × 1080, fill (cover) the canvas so no empty space
-    const OUT_W = 1920, OUT_H = 1080;
-    const out = document.createElement('canvas');
-    out.width = OUT_W; out.height = OUT_H;
-    const ctx = out.getContext('2d');
-    ctx.fillStyle = '#f5f4f2';
-    ctx.fillRect(0, 0, OUT_W, OUT_H);
-    // "Cover" scale: fill the canvas, crop excess rather than leaving empty padding
-    const scale = Math.max(OUT_W / rawCanvas.width, OUT_H / rawCanvas.height);
-    const dw = Math.round(rawCanvas.width * scale);
-    const dh = Math.round(rawCanvas.height * scale);
-    const dx = Math.round((OUT_W - dw) / 2);
-    const dy = Math.round((OUT_H - dh) / 2);
-    ctx.drawImage(rawCanvas, dx, dy, dw, dh);
-
-    // Download
-    const days = getWeekDays();
-    const filename = `SII_Schedule_${dStr(days[0])}_to_${dStr(days[6])}.png`;
-    const a = document.createElement('a');
-    a.href = out.toDataURL('image/png');
-    a.download = filename;
-    a.click();
-    toast('PNG saved ✓', 'ok');
+    const fn = 'SII_Schedule_'+dStr(days[0])+'_to_'+dStr(days[6])+'.png';
+    const a  = document.createElement('a');
+    a.href   = cv.toDataURL('image/png');
+    a.download = fn; a.click();
+    toast('PNG saved ✓','ok');
   } catch(e) {
     console.error(e);
-    toast('PNG export failed — try a different browser','err');
+    toast('PNG export failed — '+e.message,'err');
   } finally {
     btn.textContent = '📷 Save PNG'; btn.disabled = false;
   }
