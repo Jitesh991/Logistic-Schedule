@@ -170,6 +170,10 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .sg thead th.hol-hdr{background:var(--hol-bg);color:var(--hol-fg)}
 .pullout-tag{display:inline-block;font-size:9px;font-weight:700;color:#0891b2;
   background:#ecfeff;border-radius:3px;padding:1px 4px;margin-top:1px}
+.coding-chk{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:6px;
+  user-select:none;transition:all .1s}
+.coding-chk:has(input:checked){background:var(--amber-lt);border-color:var(--amber);color:#7a3e00}
 .dc-dot{min-height:80px;width:100%;display:flex;align-items:center;justify-content:center;
   color:#d1d5db;font-size:20px;cursor:pointer;transition:all .1s}
 .dc-dot:hover{color:var(--accent);background:#ebf3ff;font-size:22px}
@@ -379,12 +383,12 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 <!-- ══ TRUCKS ══ -->
 <div class="page" id="page-trucks">
   <div class="ph">
-    <div><h2>Trucks</h2><p>Registered truck plate numbers</p></div>
+    <div><h2>Trucks</h2><p>Manage truck details, coding days and availability</p></div>
     <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddTruck()">+ Add Truck</button></div>
   </div>
   <div class="card"><div style="padding:0">
     <table>
-      <thead><tr><th>Plate Number</th><th>Type / Description</th><th style="text-align:right">Actions</th></tr></thead>
+      <thead><tr><th>Plate / Type</th><th>Status</th><th>Coding Days</th><th>Default Driver</th><th>Notes</th><th style="text-align:right">Actions</th></tr></thead>
       <tbody id="trucks-body"></tbody>
     </table>
   </div></div>
@@ -538,14 +542,50 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 
 <!-- ════ MODAL: Truck ════ -->
 <div class="modal-bg" id="m-truck">
-  <div class="modal" style="width:400px">
+  <div class="modal" style="width:480px">
     <div class="modal-hdr">
       <h3 id="m-truck-title">Add Truck</h3>
       <button class="modal-close" onclick="closeModal('m-truck')">✕</button>
     </div>
     <input type="hidden" id="f-truck-id">
-    <div class="field"><label>Plate Number</label><input type="text" id="f-tplate" placeholder="e.g. ABC-1234" style="text-transform:uppercase"></div>
-    <div class="field"><label>Type / Description</label><input type="text" id="f-tdesc" placeholder="e.g. 10-wheeler, Elf, L300..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+      <div class="field"><label>Plate Number</label><input type="text" id="f-tplate" placeholder="e.g. ABC-1234" style="text-transform:uppercase"></div>
+      <div class="field"><label>Vehicle Type</label>
+        <select id="f-tcapacity">
+          <option value="">— select —</option>
+          <option value="4-wheeler">4-wheeler</option>
+          <option value="6-wheeler">6-wheeler</option>
+          <option value="10-wheeler">10-wheeler</option>
+          <option value="Van / Elf">Van / Elf</option>
+          <option value="L300">L300</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Description / Remarks</label><input type="text" id="f-tdesc" placeholder="e.g. refrigerated, owned, leased..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 14px">
+      <div class="field"><label>Status</label>
+        <select id="f-tstatus">
+          <option value="active">✅ Active</option>
+          <option value="maintenance">🔧 Under Maintenance</option>
+        </select>
+      </div>
+      <div class="field"><label>Default Driver</label>
+        <select id="f-tdriver"><option value="">— none —</option></select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Coding Days <span style="font-weight:400;color:var(--muted);font-size:11px">(days this truck can't operate — warning shown in grid)</span></label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Monday"> Mon</label>
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Tuesday"> Tue</label>
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Wednesday"> Wed</label>
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Thursday"> Thu</label>
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Friday"> Fri</label>
+        <label class="coding-chk"><input type="checkbox" class="t-coding" value="Saturday"> Sat</label>
+      </div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="f-tnotes" rows="2" placeholder="Any additional info about this truck..." style="resize:vertical"></textarea></div>
     <div class="modal-foot">
       <button class="btn btn-r btn-sm" id="btn-del-truck" onclick="deleteTruck()" style="display:none;margin-right:auto">🗑 Delete</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-truck')">Cancel</button>
@@ -856,6 +896,10 @@ async function renderCalendar() {
         </div></td>`;
       }
 
+      // Coding day warning
+      const dayName = d.toLocaleDateString('en-PH',{weekday:'long'});
+      const isCodingDay = (truck.codingDays||[]).includes(dayName);
+
       if (sched) {
         const delivs   = sched.deliveries || [];
         const first    = delivs[0];
@@ -873,11 +917,12 @@ async function renderCalendar() {
         }).join('');
         const firstCust = first ? cMap[first.cid] : null;
         const timeStr   = firstCust?.time ? `⏰ ${esc(firstCust.time)}` : '';
-        const holBanner = holName ? `<div style="font-size:9px;font-weight:800;color:var(--hol-fg);background:var(--hol-bg);padding:2px 5px;border-radius:3px;margin-bottom:2px">🎌 ${esc(holName)}</div>` : '';
+        const holBanner    = holName ? `<div style="font-size:9px;font-weight:800;color:var(--hol-fg);background:var(--hol-bg);padding:2px 5px;border-radius:3px;margin-bottom:2px">🎌 ${esc(holName)}</div>` : '';
+        const codingBanner = isCodingDay ? `<div style="font-size:9px;font-weight:800;color:#854d0e;background:#fef9c3;padding:2px 5px;border-radius:3px;margin-bottom:2px">⚠️ CODING DAY</div>` : '';
         return `<td class="${tdCls}">
           <div class="dc" onclick="openEditSched('${esc(sched.id)}')">
             <div class="dc-card cc-${ci}">
-              ${holBanner}
+              ${holBanner}${codingBanner}
               ${stopLines}
               ${timeStr ? `<div class="dc-time">${timeStr}</div>` : ''}
               <div class="dc-drv">👤 ${esc(drvLast)}</div>
@@ -885,17 +930,21 @@ async function renderCalendar() {
           </div></td>`;
       } else {
         if (currentUser && currentUser.role === 'viewer') {
-          return `<td class="${tdCls}"><div style="min-height:80px"></div></td>`;
+          return `<td class="${tdCls}"><div style="min-height:80px${isCodingDay?';background:rgba(255,241,130,.18)':''}"></div></td>`;
         }
-        return `<td class="${tdCls}">
-          <div class="dc-dot" onclick="openAddSchedFor('${esc(truck.plate)}','${ds}')">·</div></td>`;
+        const codingDot = isCodingDay ? `<div style="font-size:9px;font-weight:700;color:#854d0e;margin-bottom:4px">⚠️ Coding</div>` : '';
+        return `<td class="${tdCls}" style="${isCodingDay?'background:rgba(255,241,130,.14)':''}">
+          <div class="dc-dot" onclick="openAddSchedFor('${esc(truck.plate)}','${ds}')">${codingDot}·</div></td>`;
       }
     }).join('');
 
+    const statusBadge  = truck.status==='maintenance' ? `<div style="font-size:9px;font-weight:700;color:#92400e;background:#fef3c7;border-radius:3px;padding:1px 5px;margin-top:2px;display:inline-block">🔧 Maintenance</div>` : '';
+    const capacityLabel = truck.capacity || truck.desc || '';
     return `<tr>
       <td class="plate-cell">
         <div class="plate-no">🚛 ${esc(truck.plate)}</div>
-        ${truck.desc ? `<div class="plate-desc">${esc(truck.desc)}</div>` : ''}
+        ${capacityLabel ? `<div class="plate-desc">${esc(capacityLabel)}</div>` : ''}
+        ${statusBadge}
       </td>${cells}</tr>`;
   }).join('');
 }
@@ -925,6 +974,17 @@ async function openAddSchedFor(plate, date) {
   document.getElementById('f-date').value = date;
   document.getElementById('f-plate').value = plate;
   document.getElementById('f-plate-sel').value = plate;
+  // Pre-fill default driver from truck profile
+  const trucks  = await apiGet('trucks');
+  const drivers = await apiGet('drivers');
+  const truck   = trucks.find(t => t.plate === plate);
+  if (truck?.defaultDriver) {
+    const drv = drivers.find(d => d.id === truck.defaultDriver);
+    if (drv) {
+      document.getElementById('f-driver').value     = drv.name;
+      document.getElementById('f-driver-sel').value = drv.name;
+    }
+  }
 }
 
 async function openEditSched(id) {
@@ -1244,43 +1304,98 @@ function deleteDriver() {
 //  TRUCKS
 // ══════════════════════════════════════════════════
 async function renderTrucksPage() {
-  const trucks=await apiGet('trucks');
-  const tbody=document.getElementById('trucks-body');
-  if(!trucks.length){tbody.innerHTML='<tr><td colspan="3"><div class="no-data">No trucks registered yet.</div></td></tr>';return;}
-  tbody.innerHTML=trucks.map(t=>`<tr>
-    <td><span class="tag tb">🚛 ${esc(t.plate)}</span></td>
-    <td><div class="es">${esc(t.desc||'—')}</div></td>
-    <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditTruck('${t.id}')">Edit</button></td>
-  </tr>`).join('');
+  const [trucks, drivers] = await Promise.all([apiGet('trucks'), apiGet('drivers')]);
+  const dMap = Object.fromEntries(drivers.map(d=>[d.id, d.name]));
+  const tbody = document.getElementById('trucks-body');
+  if (!trucks.length) {
+    tbody.innerHTML='<tr><td colspan="6"><div class="no-data">No trucks registered yet.</div></td></tr>'; return;
+  }
+  tbody.innerHTML = trucks.map(t => {
+    const statusBadge = t.status === 'maintenance'
+      ? '<span class="tag" style="background:#fef3c7;color:#92400e;font-size:10px">🔧 Maintenance</span>'
+      : '<span class="tag" style="background:#f0fdf4;color:#166534;font-size:10px">✅ Active</span>';
+    const codingBadges = (t.codingDays||[]).length
+      ? (t.codingDays).map(d=>`<span class="tag" style="background:#fef9c3;color:#854d0e;font-size:10px">${d.slice(0,3)}</span>`).join(' ')
+      : '<span style="color:var(--muted);font-size:12px">—</span>';
+    const driverName = t.defaultDriver ? esc(dMap[t.defaultDriver]||'—') : '<span style="color:var(--muted)">—</span>';
+    const typeLabel  = [t.capacity, t.desc].filter(Boolean).join(' · ');
+    return `<tr>
+      <td><span class="tag tb">🚛 ${esc(t.plate)}</span>${typeLabel?`<div class="plate-desc" style="margin-top:3px">${esc(typeLabel)}</div>`:''}</td>
+      <td>${statusBadge}</td>
+      <td>${codingBadges}</td>
+      <td style="font-size:12px">${driverName}</td>
+      <td style="font-size:12px;color:var(--muted);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.notes||'')}</td>
+      <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditTruck('${t.id}')">Edit</button></td>
+    </tr>`;
+  }).join('');
 }
-function openAddTruck() {
-  document.getElementById('f-truck-id').value=''; document.getElementById('f-tplate').value=''; document.getElementById('f-tdesc').value='';
-  document.getElementById('m-truck-title').textContent='Add Truck';
-  document.getElementById('btn-del-truck').style.display='none'; openModal('m-truck');
+
+async function openAddTruck() {
+  // Populate default driver dropdown
+  const drivers = await apiGet('drivers');
+  const dSel = document.getElementById('f-tdriver');
+  dSel.innerHTML = '<option value="">— none —</option>' + drivers.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+
+  document.getElementById('f-truck-id').value = '';
+  document.getElementById('f-tplate').value   = '';
+  document.getElementById('f-tdesc').value    = '';
+  document.getElementById('f-tcapacity').value = '';
+  document.getElementById('f-tstatus').value  = 'active';
+  document.getElementById('f-tdriver').value  = '';
+  document.getElementById('f-tnotes').value   = '';
+  document.querySelectorAll('.t-coding').forEach(cb => cb.checked = false);
+  document.getElementById('m-truck-title').textContent = 'Add Truck';
+  document.getElementById('btn-del-truck').style.display = 'none';
+  openModal('m-truck');
 }
+
 async function openEditTruck(id) {
-  const trucks=await apiGet('trucks'); const t=trucks.find(x=>x.id===id); if(!t) return;
-  document.getElementById('f-truck-id').value=t.id; document.getElementById('f-tplate').value=t.plate; document.getElementById('f-tdesc').value=t.desc||'';
-  document.getElementById('m-truck-title').textContent='Edit Truck';
-  document.getElementById('btn-del-truck').style.display=''; openModal('m-truck');
+  const [trucks, drivers] = await Promise.all([apiGet('trucks'), apiGet('drivers')]);
+  const t = trucks.find(x => x.id === id); if (!t) return;
+
+  const dSel = document.getElementById('f-tdriver');
+  dSel.innerHTML = '<option value="">— none —</option>' + drivers.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('');
+
+  document.getElementById('f-truck-id').value  = t.id;
+  document.getElementById('f-tplate').value    = t.plate;
+  document.getElementById('f-tdesc').value     = t.desc || '';
+  document.getElementById('f-tcapacity').value = t.capacity || '';
+  document.getElementById('f-tstatus').value   = t.status || 'active';
+  document.getElementById('f-tdriver').value   = t.defaultDriver || '';
+  document.getElementById('f-tnotes').value    = t.notes || '';
+  document.querySelectorAll('.t-coding').forEach(cb => {
+    cb.checked = (t.codingDays || []).includes(cb.value);
+  });
+  document.getElementById('m-truck-title').textContent = 'Edit Truck';
+  document.getElementById('btn-del-truck').style.display = '';
+  openModal('m-truck');
 }
+
 async function saveTruck() {
-  const id=document.getElementById('f-truck-id').value;
-  const plate=document.getElementById('f-tplate').value.trim().toUpperCase();
-  const desc=document.getElementById('f-tdesc').value.trim();
-  if(!plate){toast('Plate number is required','err');return;}
-  const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-  const trucks=await apiGet('trucks');
-  const item=id ? {...trucks.find(t=>t.id===id), plate, desc} : {id:uid_(),plate,desc};
-  const res=await apiSave('trucks',item);
-  if(!res?.ok&&!res?.data){toast('Save failed','err');return;}
-  closeModal('m-truck'); toast(id?'Truck updated ✓':'Truck added ✓','ok');
+  const id       = document.getElementById('f-truck-id').value;
+  const plate    = document.getElementById('f-tplate').value.trim().toUpperCase();
+  const desc     = document.getElementById('f-tdesc').value.trim();
+  const capacity = document.getElementById('f-tcapacity').value;
+  const status   = document.getElementById('f-tstatus').value;
+  const defaultDriver = document.getElementById('f-tdriver').value;
+  const notes    = document.getElementById('f-tnotes').value.trim();
+  const codingDays = [...document.querySelectorAll('.t-coding:checked')].map(cb => cb.value);
+  if (!plate) { toast('Plate number is required','err'); return; }
+  const uid_ = () => Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const trucks = await apiGet('trucks');
+  const item = id
+    ? { ...trucks.find(t=>t.id===id), plate, desc, capacity, status, defaultDriver, notes, codingDays }
+    : { id:uid_(), plate, desc, capacity, status, defaultDriver, notes, codingDays };
+  const res = await apiSave('trucks', item);
+  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
+  closeModal('m-truck'); toast(id ? 'Truck updated ✓' : 'Truck added ✓','ok');
   await populateFilters(); renderTrucksPage();
 }
+
 function deleteTruck() {
-  const id=document.getElementById('f-truck-id').value; if(!id) return;
-  confirm2('Delete this truck?','This only removes it from the saved list.',async()=>{
-    await apiDelete('trucks',id); closeModal('m-truck'); toast('Deleted','ok');
+  const id = document.getElementById('f-truck-id').value; if (!id) return;
+  confirm2('Delete this truck?','This only removes it from the saved list.', async () => {
+    await apiDelete('trucks', id); closeModal('m-truck'); toast('Deleted','ok');
     await populateFilters(); renderTrucksPage();
   });
 }
