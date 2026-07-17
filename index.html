@@ -174,6 +174,20 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:6px;
   user-select:none;transition:all .1s}
 .coding-chk:has(input:checked){background:var(--amber-lt);border-color:var(--amber);color:#7a3e00}
+.permit-item{display:flex;align-items:center;justify-content:space-between;
+  padding:5px 10px;background:var(--alt);border:1px solid #fecaca;border-radius:6px;
+  font-size:12px;font-weight:600;color:#1a1a1a;margin-bottom:5px}
+.permit-item button{background:none;border:none;cursor:pointer;color:#e53e30;font-size:14px;line-height:1;padding:0 2px}
+.permit-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;
+  color:#b91c1c;background:#fee2e2;border-radius:4px;padding:2px 6px}
+.pr-group{margin-bottom:14px}
+.pr-group-hdr{font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:6px;
+  display:flex;align-items:center;gap:6px}
+.pr-check{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;
+  font-size:12px;cursor:pointer;transition:background .1s}
+.pr-check:hover{background:var(--bg)}
+.pr-check input{accent-color:var(--green);width:15px;height:15px;cursor:pointer}
+.pr-check.done{text-decoration:line-through;color:var(--muted)}
 .dc-dot{min-height:80px;width:100%;display:flex;align-items:center;justify-content:center;
   color:#d1d5db;font-size:20px;cursor:pointer;transition:all .1s}
 .dc-dot:hover{color:var(--accent);background:#ebf3ff;font-size:22px}
@@ -360,7 +374,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   </div>
   <div class="card"><div style="padding:0">
     <table>
-      <thead><tr><th>Customer Name</th><th>Address / Notes</th><th>Delivery Days</th><th>Time</th><th style="text-align:right">Actions</th></tr></thead>
+      <thead><tr><th>Customer Name</th><th>Address / Notes</th><th>Delivery Days</th><th>Time</th><th>Permits</th><th style="text-align:right">Actions</th></tr></thead>
       <tbody id="customers-body"></tbody>
     </table>
   </div></div>
@@ -514,6 +528,15 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       </div>
     </div>
     <div class="field"><label>Delivery Time</label><input type="text" id="f-ctime" placeholder="e.g. 10am to 2pm"></div>
+    <div class="field">
+      <label>Required Permits <span style="font-weight:400;color:var(--muted);font-size:11px">— shown as a reminder when this customer is scheduled</span></label>
+      <div id="permit-list" style="margin-top:6px"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <input type="text" id="f-permit-input" placeholder="e.g. Gate Pass, Delivery Receipt…"
+          style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addPermitItem();}">
+        <button type="button" class="btn btn-o btn-sm" onclick="addPermitItem()">+ Add</button>
+      </div>
+    </div>
     <div class="modal-foot">
       <button class="btn btn-r btn-sm" id="btn-del-cust" onclick="deleteCustomer()" style="display:none;margin-right:auto">🗑 Delete</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-customer')">Cancel</button>
@@ -536,6 +559,25 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <button class="btn btn-r btn-sm" id="btn-del-driver" onclick="deleteDriver()" style="display:none;margin-right:auto">🗑 Delete</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-driver')">Cancel</button>
       <button class="btn btn-p btn-sm" onclick="saveDriver()">Save Driver</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Permit Reminder ════ -->
+<div class="modal-bg" id="m-permit">
+  <div class="modal" style="width:460px">
+    <div class="modal-hdr">
+      <h3>📋 Permit Reminder</h3>
+      <button class="modal-close" onclick="closeModal('m-permit')">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px 0">
+      The following customers require permits. Tick each off once prepared, then save.
+    </p>
+    <div id="permit-reminder-body"></div>
+    <div id="permit-progress" style="font-size:12px;color:var(--muted);margin:10px 0 4px;text-align:right"></div>
+    <div class="modal-foot">
+      <button class="btn btn-o btn-sm" onclick="closeModal('m-permit')">← Go Back</button>
+      <button class="btn btn-p btn-sm" id="btn-permit-save">✓ Save Schedule</button>
     </div>
   </div>
 </div>
@@ -1111,22 +1153,31 @@ async function saveSched() {
   const dt = new Date(date+'T00:00:00');
   if (isSun(dt)) { toast('Sundays are rest days','err'); return; }
   if (isSat(dt)) { toast('Saturdays are off','err'); return; }
-  const holidays = await apiGet('holidays');
-  const holMatch = holidays.find(h => h.date === date);
-  // Note: holiday warning is shown in grid; scheduling on holidays is allowed but noted
 
   const schedules = await apiGet('schedules');
   const dup = schedules.find(s => s.plate===plate && s.date===date && s.id!==id);
   if (dup) { toast('This truck already has a schedule on that date','err'); return; }
 
-  const uid_  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-  const entry = { id: id||uid_(), date, plate, driver, helpers, deliveries, notes, created: new Date().toISOString() };
+  // Check if any delivery customers require permits — show reminder first
+  const customers = await apiGet('customers');
+  const cMap      = Object.fromEntries(customers.map(c=>[c.id,c]));
+  const needsPermit = deliveries.some(dv => (cMap[dv.cid]?.permits||[]).length > 0);
 
-  const res = await apiSave('schedules', entry);
-  if (!res?.ok && !res?.data) { toast('Save failed — try again','err'); return; }
-  closeModal('m-sched');
-  toast(id ? 'Schedule updated ✓' : 'Schedule added ✓', 'ok');
-  renderCalendar();
+  const doSave = async () => {
+    const uid_  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    const entry = { id: id||uid_(), date, plate, driver, helpers, deliveries, notes, created: new Date().toISOString() };
+    const res   = await apiSave('schedules', entry);
+    if (!res?.ok && !res?.data) { toast('Save failed — try again','err'); return; }
+    closeModal('m-sched');
+    toast(id ? 'Schedule updated ✓' : 'Schedule added ✓', 'ok');
+    renderCalendar();
+  };
+
+  if (needsPermit) {
+    await showPermitReminder(doSave);
+  } else {
+    await doSave();
+  }
 }
 
 async function deleteSched() {
@@ -1199,10 +1250,13 @@ function setDayChecks(days=[]) {
 async function renderCustomersPage() {
   const custs = await apiGet('customers');
   const tbody = document.getElementById('customers-body');
-  if (!custs.length) { tbody.innerHTML='<tr><td colspan="5"><div class="no-data">No customers yet. Click + Add Customer.</div></td></tr>'; return; }
+  if (!custs.length) { tbody.innerHTML='<tr><td colspan="6"><div class="no-data">No customers yet. Click + Add Customer.</div></td></tr>'; return; }
   const pal = ['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#dc2626','#65a30d'];
   tbody.innerHTML = custs.map((c,i) => {
-    const dayBadges = (c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
+    const dayBadges  = (c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
+    const permitBadge = (c.permits||[]).length
+      ? `<span class="permit-badge">📋 ${(c.permits).length} permit${(c.permits).length>1?'s':''}</span>`
+      : '<span style="color:var(--muted);font-size:12px">—</span>';
     return `<tr>
       <td><div class="en" style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:2px;background:${pal[i%8]};flex-shrink:0"></span>${esc(c.name)}
@@ -1210,26 +1264,56 @@ async function renderCustomersPage() {
       <td><div class="es">${esc(c.address||'—')}</div></td>
       <td>${dayBadges||'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(c.time||'—')}</td>
+      <td>${permitBadge}</td>
       <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditCustomer('${c.id}')">Edit</button></td>
     </tr>`;
   }).join('');
 }
 
+// ── Permit items helpers ─────────────────────────
+function renderPermitList(items) {
+  const list = document.getElementById('permit-list');
+  list.innerHTML = items.length
+    ? items.map((item,i)=>`<div class="permit-item">
+        <span>📋 ${esc(item)}</span>
+        <button type="button" title="Remove" onclick="removePermitItem(${i})">✕</button>
+      </div>`).join('')
+    : '';
+  list._items = [...items];
+}
+function addPermitItem() {
+  const inp = document.getElementById('f-permit-input');
+  const val = inp.value.trim(); if (!val) return;
+  const list = document.getElementById('permit-list');
+  renderPermitList([...(list._items||[]), val]);
+  inp.value = ''; inp.focus();
+}
+function removePermitItem(i) {
+  const list = document.getElementById('permit-list');
+  const items = [...(list._items||[])]; items.splice(i,1);
+  renderPermitList(items);
+}
+function getPermitItems() {
+  return document.getElementById('permit-list')._items || [];
+}
+
 function openAddCustomer() {
   document.getElementById('f-cust-id').value=''; document.getElementById('f-cname').value='';
   document.getElementById('f-caddr').value=''; document.getElementById('f-ctime').value='';
+  document.getElementById('f-permit-input').value='';
   document.getElementById('m-customer-title').textContent='Add Customer';
   document.getElementById('btn-del-cust').style.display='none';
-  setDayChecks([]); openModal('m-customer');
+  setDayChecks([]); renderPermitList([]); openModal('m-customer');
 }
 async function openEditCustomer(id) {
   const custs = await apiGet('customers');
   const c = custs.find(x=>x.id===id); if(!c) return;
   document.getElementById('f-cust-id').value=c.id; document.getElementById('f-cname').value=c.name;
   document.getElementById('f-caddr').value=c.address||''; document.getElementById('f-ctime').value=c.time||'';
+  document.getElementById('f-permit-input').value='';
   document.getElementById('m-customer-title').textContent='Edit Customer';
   document.getElementById('btn-del-cust').style.display='';
-  setDayChecks(c.days||[]); openModal('m-customer');
+  setDayChecks(c.days||[]); renderPermitList(c.permits||[]); openModal('m-customer');
 }
 async function saveCustomer() {
   const id=document.getElementById('f-cust-id').value;
@@ -1237,12 +1321,13 @@ async function saveCustomer() {
   const address=document.getElementById('f-caddr').value.trim();
   const time=document.getElementById('f-ctime').value.trim();
   const days=getDayChecks();
+  const permits=getPermitItems();
   if (!name) { toast('Customer name is required','err'); return; }
   const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const custs = await apiGet('customers');
   const item = id
-    ? {...custs.find(c=>c.id===id), name, address, days, time}
-    : {id:uid_(), name, address, days, time};
+    ? {...custs.find(c=>c.id===id), name, address, days, time, permits}
+    : {id:uid_(), name, address, days, time, permits};
   const res = await apiSave('customers', item);
   if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
   closeModal('m-customer'); toast(id?'Customer updated ✓':'Customer added ✓','ok');
@@ -1255,6 +1340,47 @@ function deleteCustomer() {
     closeModal('m-customer'); toast('Deleted','ok');
     await populateFilters(); renderCustomersPage();
   });
+}
+
+// ── Permit reminder at schedule save ────────────
+function updatePermitProgress() {
+  const checks = document.querySelectorAll('#permit-reminder-body .pr-check input');
+  const total  = checks.length;
+  const done   = [...checks].filter(c=>c.checked).length;
+  document.getElementById('permit-progress').textContent = `${done} / ${total} permits confirmed`;
+  const btn = document.getElementById('btn-permit-save');
+  btn.textContent = done < total ? `⚠️ Save anyway (${total-done} unprepared)` : '✓ All Prepared — Save Schedule';
+  btn.style.background = done < total ? 'var(--amber)' : '';
+}
+
+async function showPermitReminder(saveCallback) {
+  const customers  = await apiGet('customers');
+  const cMap       = Object.fromEntries(customers.map(c=>[c.id,c]));
+  const deliveries = getDeliveries();
+  const groups     = [];
+  deliveries.forEach(dv => {
+    const c = cMap[dv.cid];
+    if (c && (c.permits||[]).length) groups.push(c);
+  });
+  if (!groups.length) { await saveCallback(); return; }
+
+  const body = document.getElementById('permit-reminder-body');
+  body.innerHTML = groups.map(c => `
+    <div class="pr-group">
+      <div class="pr-group-hdr">
+        <span class="permit-badge">📋</span> ${esc(c.name)}
+      </div>
+      ${c.permits.map(p=>`
+        <label class="pr-check" onclick="this.classList.toggle('done',this.querySelector('input').checked);updatePermitProgress()">
+          <input type="checkbox" onchange="updatePermitProgress()"> ${esc(p)}
+        </label>`).join('')}
+    </div>`).join('<hr style="border:none;border-top:1px solid var(--border);margin:8px 0">');
+
+  document.getElementById('btn-permit-save').onclick = async () => {
+    closeModal('m-permit'); await saveCallback();
+  };
+  updatePermitProgress();
+  openModal('m-permit');
 }
 
 // ══════════════════════════════════════════════════
