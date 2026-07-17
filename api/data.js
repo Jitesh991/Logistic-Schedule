@@ -1,9 +1,29 @@
 const crypto = require('crypto');
-const { put, list, del, head } = require('@vercel/blob');
+const { put, del } = require('@vercel/blob');   // list/head no longer needed
 
 const SECRET     = process.env.JWT_SECRET || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
 const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays'];
 
+// ── Derive the public blob store base URL from the token ──────────────────────
+// Token format: vercel_blob_rw_{storeId}_{secret}
+// This lets us build the deterministic public URL without any list()/head() calls.
+function blobBaseUrl() {
+  const token = process.env.BLOB_READ_WRITE_TOKEN || '';
+  const parts = token.split('_');
+  // parts: ['vercel','blob','rw','{storeId}','{secret}']
+  if (parts.length >= 4) {
+    return `https://${parts[3]}.public.blob.vercel-storage.com`;
+  }
+  return null;
+}
+
+function colUrl(col) {
+  const base = blobBaseUrl();
+  if (!base) return null;
+  return `${base}/sii/${col}.json`;
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
   const dot = token.lastIndexOf('.');
@@ -18,33 +38,44 @@ function verifyToken(token) {
   } catch { return null; }
 }
 
-async function readBlob(url) {
-  try {
-    const meta = await head(url);
-    const res  = await fetch(meta.downloadUrl || url);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    try {
-      const res = await fetch(url);
-      return res.ok ? await res.text() : null;
-    } catch { return null; }
-  }
-}
-
+// ── Read: direct public fetch — 0 advanced operations ────────────────────────
 async function readCol(col) {
   try {
+    const url = colUrl(col);
+    if (url) {
+      // Public blob — no auth needed, no list()/head() needed
+      const res = await fetch(`${url}?t=${Date.now()}`, {
+        headers: { 'Cache-Control': 'no-cache, no-store' }
+      });
+      if (res.ok)             return await res.json();
+      if (res.status === 404) return [];   // collection doesn't exist yet — fine
+      // unexpected status: fall through to legacy path
+    }
+    // Fallback (only if token parsing fails / local dev without env var)
+    const { list } = require('@vercel/blob');
     const { blobs } = await list({ prefix: `sii/${col}.json` });
     if (!blobs.length) return [];
     const sorted = blobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    const text = await readBlob(sorted[0].url);
-    return text ? JSON.parse(text) : [];
-  } catch (e) { console.error(`readCol(${col}) error:`, e); return []; }
+    const r = await fetch(sorted[0].url);
+    return r.ok ? await r.json() : [];
+  } catch (e) {
+    console.error(`readCol(${col}) error:`, e);
+    return [];
+  }
 }
 
+// ── Write: delete by known URL + put — 1 advanced op (del) + 1 simple op (put)
 async function writeCol(col, data) {
-  const { blobs } = await list({ prefix: `sii/${col}.json` });
-  if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
+  const url = colUrl(col);
+  if (url) {
+    // Delete the known URL directly — no list() needed
+    try { await del(url); } catch { /* 404 is fine on first write */ }
+  } else {
+    // Fallback
+    const { list } = require('@vercel/blob');
+    const { blobs } = await list({ prefix: `sii/${col}.json` });
+    if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
+  }
   await put(`sii/${col}.json`, JSON.stringify(data), {
     addRandomSuffix: false,
     access: 'public',
@@ -52,6 +83,7 @@ async function writeCol(col, data) {
   });
 }
 
+// ── Handler ───────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
