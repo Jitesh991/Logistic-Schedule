@@ -266,16 +266,21 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .share-btn:hover{background:#cffafe;border-color:#0891b2}
 
 /* Share modal */
-#m-share .modal{width:420px}
-.share-preview{background:var(--bg);border:1px solid var(--border);border-radius:8px;
-  padding:14px 16px;font-size:13px;line-height:1.75;white-space:pre-wrap;
-  font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:14px;color:var(--text);
-  max-height:220px;overflow-y:auto}
-.share-actions{display:flex;gap:8px;flex-wrap:wrap}
-.share-dt-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;
-  background:#1476fe;color:#fff;border:none;border-radius:8px;font-size:13px;
-  font-weight:700;cursor:pointer;transition:background .12s}
-.share-dt-btn:hover{background:#0d5fd4}
+#m-share .modal{width:380px}
+.share-addr{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:12px 14px;font-size:13px;font-weight:600;line-height:1.6;
+  margin-bottom:14px;color:var(--text)}
+.share-addr .addr-label{font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.5px;color:var(--muted);margin-bottom:4px}
+.share-map-btns{display:flex;gap:8px}
+.btn-waze{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 14px;background:#00d4e5;color:#000;border:none;border-radius:9px;
+  font-size:13px;font-weight:800;cursor:pointer;transition:all .12s}
+.btn-waze:hover{background:#00bcd4}
+.btn-gmaps{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:11px 14px;background:#1a73e8;color:#fff;border:none;border-radius:9px;
+  font-size:13px;font-weight:800;cursor:pointer;transition:all .12s}
+.btn-gmaps:hover{background:#1557b0}
 
 /* Print styles removed — use Save PNG button instead */
 </style>
@@ -722,25 +727,29 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   </div>
 </div>
 
-<!-- ════ MODAL: Share Customer ════ -->
+<!-- ════ MODAL: Share Customer Address ════ -->
 <div class="modal-bg" id="m-share">
-  <div class="modal" style="width:420px">
+  <div class="modal" style="width:380px">
     <div class="modal-hdr">
-      <h3>📤 Share Customer Info</h3>
+      <h3>📍 Open Address</h3>
       <button class="modal-close" onclick="closeModal('m-share')">✕</button>
     </div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
-      Copy and paste into DingTalk, or click Open in DingTalk to send directly.
-    </p>
-    <div class="share-preview" id="share-preview"></div>
-    <div class="share-actions">
-      <button class="btn btn-o btn-sm" id="share-copy-btn" onclick="copyShareText()">📋 Copy Text</button>
-      <button class="share-dt-btn" id="share-dt-btn" onclick="openDingTalk()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-        Open in DingTalk
+    <div class="share-addr">
+      <div class="addr-label">Address</div>
+      <div id="share-addr-text"></div>
+    </div>
+    <div class="share-map-btns">
+      <button class="btn-waze" onclick="openWaze()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C7 2 3 6 3 11c0 3.2 1.6 6 4.1 7.7-.1.5-.4 1.6-.5 2.1-.1.6.5 1.1 1 .8l2.9-1.6c.8.1 1.7.2 2.5.2 5 0 9-4 9-9S17 2 12 2zm0 16c-.7 0-1.4-.1-2.1-.2l-.4-.1-1.8 1 .3-1.3.1-.4-.3-.2C5.7 16 5 13.6 5 11c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7zm-2.5-8C8.7 10 8 9.3 8 8.5S8.7 7 9.5 7 11 7.7 11 8.5 10.3 10 9.5 10zm5 0c-.8 0-1.5-.7-1.5-1.5S13.7 7 14.5 7 16 7.7 16 8.5 15.3 10 14.5 10zm-5 2.5c0 .3.5 1.5 2.5 1.5s2.5-1.2 2.5-1.5H9.5z"/></svg>
+        Waze
+      </button>
+      <button class="btn-gmaps" onclick="openGoogleMaps()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        Google Maps
       </button>
     </div>
-    <div class="modal-foot" style="border-top:0;padding-top:10px">
+    <div class="modal-foot" style="padding-top:12px">
+      <button class="btn btn-o btn-sm" id="share-copy-btn" onclick="copyShareText()">📋 Copy Address</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-share')">Close</button>
     </div>
   </div>
@@ -1359,38 +1368,36 @@ function renderCustomerRows(custs) {
   }).join('');
 }
 
-// ── Share Customer via DingTalk ──────────────────────────
-let _shareText = '';
+// ── Share Customer Address → Waze / Google Maps ──────────
+let _shareAddress = '';
 
 function openShareCustomer(id) {
   const c = _allCustomers.find(x => x.id === id);
   if (!c) return;
-  const days = (c.days||[]).join(' · ') || '—';
-  const permits = (c.permits||[]).length ? c.permits.join(', ') : 'None';
-  _shareText =
-    `📦 Customer: ${c.name}\n` +
-    `📍 Address: ${c.address || '—'}\n` +
-    `📅 Delivery Days: ${days}\n` +
-    `🕐 Delivery Time: ${c.time || '—'}\n` +
-    `📋 Required Permits: ${permits}`;
-  document.getElementById('share-preview').textContent = _shareText;
-  document.getElementById('share-copy-btn').textContent = '📋 Copy Text';
+  _shareAddress = c.address || '';
+  document.getElementById('share-addr-text').textContent = _shareAddress || '(no address on file)';
+  document.getElementById('share-copy-btn').textContent = '📋 Copy Address';
   openModal('m-share');
 }
 
 function copyShareText() {
-  if (!_shareText) return;
-  navigator.clipboard.writeText(_shareText).then(() => {
+  if (!_shareAddress) return;
+  navigator.clipboard.writeText(_shareAddress).then(() => {
     document.getElementById('share-copy-btn').textContent = '✅ Copied!';
-    setTimeout(() => { document.getElementById('share-copy-btn').textContent = '📋 Copy Text'; }, 2000);
-  }).catch(() => toast('Copy failed — try selecting the text manually', 'err'));
+    setTimeout(() => { document.getElementById('share-copy-btn').textContent = '📋 Copy Address'; }, 2000);
+  }).catch(() => toast('Copy failed', 'err'));
 }
 
-function openDingTalk() {
-  if (!_shareText) return;
-  const encoded = encodeURIComponent(_shareText);
-  // DingTalk deep link (works on desktop app and mobile)
-  window.open('dingtalk://dingtalkclient/action/sendmessage?text=' + encoded, '_blank');
+function openWaze() {
+  if (!_shareAddress) return;
+  // Waze universal link — opens app on mobile, web on desktop
+  window.open('https://waze.com/ul?q=' + encodeURIComponent(_shareAddress) + '&navigate=yes', '_blank');
+}
+
+function openGoogleMaps() {
+  if (!_shareAddress) return;
+  // Google Maps universal link — opens app on mobile, web on desktop
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(_shareAddress), '_blank');
 }
 
 // ── Permit items helpers ─────────────────────────
