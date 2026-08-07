@@ -282,6 +282,22 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   font-size:13px;font-weight:800;cursor:pointer;transition:all .12s}
 .btn-gmaps:hover{background:#1557b0}
 
+/* ── Dashboard Analytics ── */
+.dash-fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:12px 16px;margin-bottom:16px;box-shadow:var(--sh)}
+.dash-fbar label{font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.dash-fbar select{width:auto;padding:6px 10px;font-size:12px}
+.dash-fg{display:flex;align-items:center;gap:7px}
+.dash-analytics{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:780px){.dash-analytics{grid-template-columns:1fr}}
+.period-badge{font-size:11px;font-weight:700;color:var(--accent);
+  background:var(--alt);padding:3px 10px;border-radius:12px;margin-left:auto}
+.trip-bar-wrap{display:flex;align-items:center;gap:8px}
+.trip-bar-track{flex:1;background:var(--border);border-radius:4px;height:7px;overflow:hidden}
+.trip-bar-fill{height:100%;border-radius:4px}
+
 /* Print styles removed — use Save PNG button instead */
 </style>
 </head>
@@ -386,6 +402,38 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="kpi amber"> <div class="kv" id="k-pos">0</div>   <div class="kl">Total POs</div></div>
     <div class="kpi purple"><div class="kv" id="k-custs">0</div> <div class="kl">Customers Served</div></div>
   </div>
+
+  <!-- Trip Analytics -->
+  <div class="dash-fbar">
+    <div class="dash-fg">
+      <label>Month</label>
+      <select id="d-month" onchange="renderTripAnalytics()"></select>
+    </div>
+    <div class="dash-fg">
+      <label>Year</label>
+      <select id="d-year" onchange="renderTripAnalytics()"></select>
+    </div>
+    <div class="dash-fg">
+      <label>Customer</label>
+      <select id="d-cust-filter" onchange="renderTripAnalytics()"><option value="">All Customers</option></select>
+    </div>
+    <div class="dash-fg">
+      <label>Truck</label>
+      <select id="d-truck-filter" onchange="renderTripAnalytics()"><option value="">All Trucks</option></select>
+    </div>
+    <span class="period-badge" id="d-period-badge">—</span>
+  </div>
+  <div class="dash-analytics">
+    <div class="card" style="margin-bottom:0">
+      <div class="ch"><h3>🏢 Trips per Customer</h3><span id="cust-trip-total" style="font-size:11px;color:var(--muted)"></span></div>
+      <div id="trips-by-cust" style="padding:0"></div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <div class="ch"><h3>🚛 Trips per Truck</h3><span id="truck-trip-total" style="font-size:11px;color:var(--muted)"></span></div>
+      <div id="trips-by-truck" style="padding:0"></div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="ch"><h3>📍 Today's Deliveries</h3><span id="today-date" style="font-size:12px;color:var(--muted)"></span></div>
     <div id="today-wrap" style="padding:0"></div>
@@ -1288,6 +1336,143 @@ async function renderDashboard() {
   tw.innerHTML = todayS.length ? dashTable(todayS,cMap) : '<div class="no-data">No deliveries today.</div>';
   const sorted = [...scheds].sort((a,b) => a.date.localeCompare(b.date)||a.plate.localeCompare(b.plate));
   document.getElementById('week-wrap').innerHTML = sorted.length ? dashTable(sorted,cMap,true) : '<div class="no-data">No schedules this week.</div>';
+
+  // Populate & render trip analytics
+  await initDashFilters();
+  await renderTripAnalytics();
+}
+
+async function initDashFilters() {
+  const [customers, trucks] = await Promise.all([apiGet('customers'), apiGet('trucks')]);
+  const now = new Date();
+
+  // Month
+  const mSel = document.getElementById('d-month');
+  if (!mSel.dataset.init) {
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    mSel.innerHTML = months.map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
+    mSel.value = now.getMonth() + 1;
+    mSel.dataset.init = '1';
+  }
+
+  // Year
+  const ySel = document.getElementById('d-year');
+  if (!ySel.dataset.init) {
+    const cy = now.getFullYear();
+    ySel.innerHTML = [cy-2, cy-1, cy, cy+1].map(y => `<option value="${y}">${y}</option>`).join('');
+    ySel.value = cy;
+    ySel.dataset.init = '1';
+  }
+
+  // Customer dropdown
+  const cSel = document.getElementById('d-cust-filter');
+  const prevC = cSel.value;
+  cSel.innerHTML = '<option value="">All Customers</option>' +
+    customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (prevC) cSel.value = prevC;
+
+  // Truck dropdown
+  const tSel = document.getElementById('d-truck-filter');
+  const prevT = tSel.value;
+  tSel.innerHTML = '<option value="">All Trucks</option>' +
+    trucks.map(t => `<option value="${t.plate}">${esc(t.plate)}</option>`).join('');
+  if (prevT) tSel.value = prevT;
+}
+
+async function renderTripAnalytics() {
+  const month    = parseInt(document.getElementById('d-month').value) || (new Date().getMonth()+1);
+  const year     = parseInt(document.getElementById('d-year').value)  || new Date().getFullYear();
+  const selCust  = document.getElementById('d-cust-filter').value;
+  const selTruck = document.getElementById('d-truck-filter').value;
+
+  const pad      = n => String(n).padStart(2,'0');
+  const dateFrom = `${year}-${pad(month)}-01`;
+  const lastDay  = new Date(year, month, 0).getDate();
+  const dateTo   = `${year}-${pad(month)}-${pad(lastDay)}`;
+
+  const monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+  document.getElementById('d-period-badge').textContent = `${monthNames[month-1]} ${year}`;
+
+  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+
+  // Filter by period
+  let filtered = schedules.filter(s => s.date >= dateFrom && s.date <= dateTo);
+  if (selTruck) filtered = filtered.filter(s => s.plate === selTruck);
+  if (selCust)  filtered = filtered.filter(s => (s.deliveries||[]).some(d => d.cid === selCust));
+
+  // ── Trips per Customer ──────────────────────────
+  const custTrips = {}, custPos = {};
+  for (const s of filtered) {
+    for (const d of (s.deliveries||[])) {
+      if (!d.cid) continue;
+      if (selCust && d.cid !== selCust) continue;
+      custTrips[d.cid] = (custTrips[d.cid]||0) + 1;
+      custPos[d.cid]   = (custPos[d.cid]||0) + (parseInt(d.po)||0);
+    }
+  }
+  const custEntries = Object.entries(custTrips).sort((a,b) => b[1]-a[1]);
+  const maxC = Math.max(1, ...custEntries.map(e => e[1]));
+  const totalCTrips = custEntries.reduce((s,e) => s+e[1], 0);
+  document.getElementById('cust-trip-total').textContent =
+    totalCTrips ? `${totalCTrips} trip${totalCTrips!==1?'s':''} total` : '';
+
+  document.getElementById('trips-by-cust').innerHTML = custEntries.length
+    ? `<table><thead><tr><th>Customer</th><th>Trips</th><th class="num">POs</th></tr></thead><tbody>` +
+      custEntries.map(([cid, trips]) => {
+        const name = cMap[cid]?.name || '(unknown)';
+        const po   = custPos[cid]||0;
+        const pct  = Math.round((trips/maxC)*100);
+        return `<tr>
+          <td style="font-weight:600;font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</td>
+          <td style="padding:8px 14px">
+            <div class="trip-bar-wrap">
+              <div class="trip-bar-track"><div class="trip-bar-fill" style="width:${pct}%;background:var(--accent)"></div></div>
+              <span style="font-weight:800;font-size:13px;min-width:26px;text-align:right">${trips}</span>
+            </div>
+          </td>
+          <td class="num" style="color:var(--muted);font-size:12px">${po} PO${po!==1?'s':''}</td>
+        </tr>`;
+      }).join('') + `</tbody></table>`
+    : '<div class="no-data">No trips found for this period.</div>';
+
+  // ── Trips per Truck ──────────────────────────────
+  const truckTrips = {}, truckPos = {}, truckCusts = {};
+  for (const s of filtered) {
+    if (!s.plate) continue;
+    truckTrips[s.plate] = (truckTrips[s.plate]||0) + 1;
+    truckPos[s.plate]   = (truckPos[s.plate]||0) +
+      (s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0), 0);
+    if (!truckCusts[s.plate]) truckCusts[s.plate] = new Set();
+    (s.deliveries||[]).forEach(d => { if(d.cid) truckCusts[s.plate].add(d.cid); });
+  }
+  const truckEntries = Object.entries(truckTrips).sort((a,b) => b[1]-a[1]);
+  const maxT = Math.max(1, ...truckEntries.map(e => e[1]));
+  const totalTTrips = truckEntries.reduce((s,e) => s+e[1], 0);
+  document.getElementById('truck-trip-total').textContent =
+    totalTTrips ? `${totalTTrips} trip${totalTTrips!==1?'s':''} total` : '';
+
+  document.getElementById('trips-by-truck').innerHTML = truckEntries.length
+    ? `<table><thead><tr><th>Truck</th><th>Trips</th><th class="num">Customers</th><th class="num">POs</th></tr></thead><tbody>` +
+      truckEntries.map(([plate, trips]) => {
+        const po    = truckPos[plate]||0;
+        const custs = truckCusts[plate]?.size||0;
+        const pct   = Math.round((trips/maxT)*100);
+        return `<tr>
+          <td><span class="tag" style="background:var(--alt);color:var(--accent)">🚛 ${esc(plate)}</span></td>
+          <td style="padding:8px 14px">
+            <div class="trip-bar-wrap">
+              <div class="trip-bar-track"><div class="trip-bar-fill" style="width:${pct}%;background:var(--green)"></div></div>
+              <span style="font-weight:800;font-size:13px;min-width:26px;text-align:right">${trips}</span>
+            </div>
+          </td>
+          <td class="num" style="color:var(--muted);font-size:12px">${custs}</td>
+          <td class="num" style="color:var(--muted);font-size:12px">${po}</td>
+        </tr>`;
+      }).join('') + `</tbody></table>`
+    : '<div class="no-data">No trips found for this period.</div>';
 }
 
 function dashTable(arr, cMap, showDate=false) {
