@@ -252,6 +252,31 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 /* Loading overlay */
 .loading-row td{text-align:center;padding:40px;color:var(--muted);font-size:13px}
 
+/* ── Customer Search + Share ── */
+.cust-toolbar{display:flex;align-items:center;gap:10px;padding:10px 14px;
+  border-bottom:1px solid var(--border);background:var(--bg)}
+.cust-search-wrap{position:relative;flex:1;max-width:320px}
+.cust-search-wrap input{padding-left:30px;font-size:12px}
+.cust-search-wrap .si{position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  color:var(--muted);font-size:13px;pointer-events:none}
+.cust-count{font-size:11px;color:var(--muted);white-space:nowrap}
+.share-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
+  border-radius:6px;border:1.5px solid #06b6d4;color:#0891b2;background:#ecfeff;
+  font-size:11px;font-weight:700;cursor:pointer;transition:all .12s;white-space:nowrap}
+.share-btn:hover{background:#cffafe;border-color:#0891b2}
+
+/* Share modal */
+#m-share .modal{width:420px}
+.share-preview{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:14px 16px;font-size:13px;line-height:1.75;white-space:pre-wrap;
+  font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:14px;color:var(--text);
+  max-height:220px;overflow-y:auto}
+.share-actions{display:flex;gap:8px;flex-wrap:wrap}
+.share-dt-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;
+  background:#1476fe;color:#fff;border:none;border-radius:8px;font-size:13px;
+  font-weight:700;cursor:pointer;transition:background .12s}
+.share-dt-btn:hover{background:#0d5fd4}
+
 /* Print styles removed — use Save PNG button instead */
 </style>
 </head>
@@ -373,8 +398,23 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="ph-act"><button class="btn btn-p btn-sm" onclick="openAddCustomer()">+ Add Customer</button></div>
   </div>
   <div class="card"><div style="padding:0">
+    <div class="cust-toolbar">
+      <div class="cust-search-wrap">
+        <span class="si">🔍</span>
+        <input type="text" id="cust-search" placeholder="Search customers…" oninput="filterCustomers()">
+      </div>
+      <span class="cust-count" id="cust-count"></span>
+    </div>
     <table>
-      <thead><tr><th>Customer Name</th><th>Address / Notes</th><th>Delivery Days</th><th>Time</th><th>Permits</th><th style="text-align:right">Actions</th></tr></thead>
+      <thead><tr>
+        <th>Customer Name</th>
+        <th>Address / Notes</th>
+        <th>Share</th>
+        <th>Delivery Days</th>
+        <th>Time</th>
+        <th>Permits</th>
+        <th style="text-align:right">Actions</th>
+      </tr></thead>
       <tbody id="customers-body"></tbody>
     </table>
   </div></div>
@@ -678,6 +718,30 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="modal-foot">
       <button class="btn btn-o btn-sm" onclick="closeModal('m-confirm')">Cancel</button>
       <button class="btn btn-r btn-sm" id="m-confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ MODAL: Share Customer ════ -->
+<div class="modal-bg" id="m-share">
+  <div class="modal" style="width:420px">
+    <div class="modal-hdr">
+      <h3>📤 Share Customer Info</h3>
+      <button class="modal-close" onclick="closeModal('m-share')">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">
+      Copy and paste into DingTalk, or click Open in DingTalk to send directly.
+    </p>
+    <div class="share-preview" id="share-preview"></div>
+    <div class="share-actions">
+      <button class="btn btn-o btn-sm" id="share-copy-btn" onclick="copyShareText()">📋 Copy Text</button>
+      <button class="share-dt-btn" id="share-dt-btn" onclick="openDingTalk()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+        Open in DingTalk
+      </button>
+    </div>
+    <div class="modal-foot" style="border-top:0;padding-top:10px">
+      <button class="btn btn-o btn-sm" onclick="closeModal('m-share')">Close</button>
     </div>
   </div>
 </div>
@@ -1247,27 +1311,86 @@ function setDayChecks(days=[]) {
   });
 }
 
+let _allCustomers = []; // cached for search filtering
+
 async function renderCustomersPage() {
-  const custs = await apiGet('customers');
+  _allCustomers = await apiGet('customers');
+  document.getElementById('cust-search').value = '';
+  renderCustomerRows(_allCustomers);
+}
+
+function filterCustomers() {
+  const q = document.getElementById('cust-search').value.trim().toLowerCase();
+  const filtered = q
+    ? _allCustomers.filter(c =>
+        (c.name||'').toLowerCase().includes(q) ||
+        (c.address||'').toLowerCase().includes(q) ||
+        (c.days||[]).join(' ').toLowerCase().includes(q))
+    : _allCustomers;
+  renderCustomerRows(filtered);
+}
+
+function renderCustomerRows(custs) {
   const tbody = document.getElementById('customers-body');
-  if (!custs.length) { tbody.innerHTML='<tr><td colspan="6"><div class="no-data">No customers yet. Click + Add Customer.</div></td></tr>'; return; }
+  const count = document.getElementById('cust-count');
+  count.textContent = custs.length + ' customer' + (custs.length !== 1 ? 's' : '');
+  if (!custs.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="no-data">No customers found.</div></td></tr>';
+    return;
+  }
   const pal = ['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#dc2626','#65a30d'];
-  tbody.innerHTML = custs.map((c,i) => {
-    const dayBadges  = (c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
+  tbody.innerHTML = custs.map((c, i) => {
+    const colorIdx  = _allCustomers.indexOf(c) % 8;
+    const dayBadges = (c.days||[]).map(d=>`<span class="tag tb" style="font-size:10px;padding:1px 6px">${d}</span>`).join(' ');
     const permitBadge = (c.permits||[]).length
-      ? `<span class="permit-badge">📋 ${(c.permits).length} permit${(c.permits).length>1?'s':''}</span>`
+      ? `<span class="permit-badge">📋 ${c.permits.length} permit${c.permits.length>1?'s':''}</span>`
       : '<span style="color:var(--muted);font-size:12px">—</span>';
     return `<tr>
       <td><div class="en" style="display:flex;align-items:center;gap:8px">
-        <span style="width:10px;height:10px;border-radius:2px;background:${pal[i%8]};flex-shrink:0"></span>${esc(c.name)}
+        <span style="width:10px;height:10px;border-radius:2px;background:${pal[colorIdx]};flex-shrink:0"></span>${esc(c.name)}
       </div></td>
       <td><div class="es">${esc(c.address||'—')}</div></td>
+      <td><button class="share-btn" onclick="openShareCustomer('${c.id}')">🔗 Share</button></td>
       <td>${dayBadges||'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td style="font-size:12px;color:var(--muted)">${esc(c.time||'—')}</td>
       <td>${permitBadge}</td>
       <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditCustomer('${c.id}')">Edit</button></td>
     </tr>`;
   }).join('');
+}
+
+// ── Share Customer via DingTalk ──────────────────────────
+let _shareText = '';
+
+function openShareCustomer(id) {
+  const c = _allCustomers.find(x => x.id === id);
+  if (!c) return;
+  const days = (c.days||[]).join(' · ') || '—';
+  const permits = (c.permits||[]).length ? c.permits.join(', ') : 'None';
+  _shareText =
+    `📦 Customer: ${c.name}\n` +
+    `📍 Address: ${c.address || '—'}\n` +
+    `📅 Delivery Days: ${days}\n` +
+    `🕐 Delivery Time: ${c.time || '—'}\n` +
+    `📋 Required Permits: ${permits}`;
+  document.getElementById('share-preview').textContent = _shareText;
+  document.getElementById('share-copy-btn').textContent = '📋 Copy Text';
+  openModal('m-share');
+}
+
+function copyShareText() {
+  if (!_shareText) return;
+  navigator.clipboard.writeText(_shareText).then(() => {
+    document.getElementById('share-copy-btn').textContent = '✅ Copied!';
+    setTimeout(() => { document.getElementById('share-copy-btn').textContent = '📋 Copy Text'; }, 2000);
+  }).catch(() => toast('Copy failed — try selecting the text manually', 'err'));
+}
+
+function openDingTalk() {
+  if (!_shareText) return;
+  const encoded = encodeURIComponent(_shareText);
+  // DingTalk deep link (works on desktop app and mobile)
+  window.open('dingtalk://dingtalkclient/action/sendmessage?text=' + encoded, '_blank');
 }
 
 // ── Permit items helpers ─────────────────────────
