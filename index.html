@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SII Logistics Schedule</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -298,6 +299,29 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .trip-bar-track{flex:1;background:var(--border);border-radius:4px;height:7px;overflow:hidden}
 .trip-bar-fill{height:100%;border-radius:4px}
 
+/* ── Unioil SOA ── */
+.soa-fbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:12px 16px;margin-bottom:16px;box-shadow:var(--sh)}
+.soa-fbar label{font-size:11px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+.soa-fbar select{width:auto;padding:6px 10px;font-size:12px}
+.soa-fg{display:flex;align-items:center;gap:7px}
+.soa-kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:700px){.soa-kgrid{grid-template-columns:repeat(2,1fr)}}
+.fuel-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.fuel-dsl{background:#dbeafe;color:#1e40af}
+.fuel-gas{background:#fef9c3;color:#854d0e}
+.upload-zone{border:2px dashed var(--border);border-radius:10px;padding:28px;
+  text-align:center;cursor:pointer;transition:all .15s;background:var(--bg);margin-bottom:16px}
+.upload-zone:hover{border-color:var(--accent);background:var(--alt)}
+.upload-zone-icon{font-size:32px;margin-bottom:8px}
+.upload-zone p{font-size:13px;color:var(--muted)}
+.upload-zone strong{color:var(--accent)}
+.soa-rec-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;
+  color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc;border-radius:4px;
+  padding:2px 7px;margin-left:6px;vertical-align:middle}
+
 /* Print styles removed — use Save PNG button instead */
 </style>
 </head>
@@ -352,6 +376,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <button class="ni role-setup" id="nav-drivers"   onclick="go('drivers')">  <span>👤</span> Drivers</button>
   <button class="ni role-setup" id="nav-trucks"    onclick="go('trucks')">   <span>🚛</span> Trucks</button>
   <button class="ni role-setup" id="nav-holidays"  onclick="go('holidays')"> <span>🎌</span> Holidays</button>
+  <button class="ni role-setup" id="nav-soa"       onclick="go('soa')">      <span>⛽</span> Unioil SOA</button>
   <div class="ns role-admin">Admin</div>
   <button class="ni role-admin" id="nav-users"     onclick="go('users')">    <span>🔑</span> Users</button>
 </aside>
@@ -513,6 +538,60 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <tbody id="holidays-body"></tbody>
     </table>
   </div></div>
+</div>
+
+<!-- ══ UNIOIL SOA ══ -->
+<div class="page" id="page-soa">
+  <div class="ph">
+    <div><h2>⛽ Unioil SOA</h2><p>Upload monthly fuel transaction reports from Unioil</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="exportSoaCsv()">⬇ Export CSV</button>
+      <button class="btn btn-p btn-sm" onclick="document.getElementById('soa-file-input').click()">⬆ Upload .xlsx</button>
+      <input type="file" id="soa-file-input" accept=".xlsx,.xls" style="display:none" onchange="handleSoaUpload(this)">
+    </div>
+  </div>
+
+  <!-- Drop zone (shown when no data) -->
+  <div class="upload-zone" id="soa-upload-zone" onclick="document.getElementById('soa-file-input').click()">
+    <div class="upload-zone-icon">📊</div>
+    <p><strong>Click to upload</strong> your Unioil Transaction List (.xlsx)</p>
+    <p style="margin-top:4px;font-size:11px">Date · Plate · Fuel · Liters · Amount — all parsed automatically</p>
+  </div>
+
+  <!-- Filters -->
+  <div class="soa-fbar" id="soa-fbar" style="display:none">
+    <div class="soa-fg"><label>Month</label>
+      <select id="soa-month" onchange="renderSoaData()"></select></div>
+    <div class="soa-fg"><label>Year</label>
+      <select id="soa-year" onchange="renderSoaData()"></select></div>
+    <div class="soa-fg"><label>Plate</label>
+      <select id="soa-plate" onchange="renderSoaData()"><option value="">All Plates</option></select></div>
+    <span class="period-badge" id="soa-period-lbl">—</span>
+    <button class="btn btn-r btn-xs" style="margin-left:auto" onclick="clearSoaData()">🗑 Clear All</button>
+  </div>
+
+  <!-- KPI row -->
+  <div class="soa-kgrid" id="soa-kgrid" style="display:none">
+    <div class="kpi blue">  <div class="kv" id="soa-k-amount">₱0</div><div class="kl">Total Amount</div></div>
+    <div class="kpi green"> <div class="kv" id="soa-k-liters">0 L</div><div class="kl">Total Liters</div></div>
+    <div class="kpi amber"> <div class="kv" id="soa-k-trucks">0</div><div class="kl">Trucks</div></div>
+    <div class="kpi purple"><div class="kv" id="soa-k-txns">0</div><div class="kl">Transactions</div></div>
+  </div>
+
+  <!-- Per-truck summary -->
+  <div class="card" id="soa-summary-card" style="display:none">
+    <div class="ch"><h3>🚛 Summary per Truck</h3></div>
+    <div id="soa-summary" style="padding:0"></div>
+  </div>
+
+  <!-- Transaction detail -->
+  <div class="card" id="soa-detail-card" style="display:none">
+    <div class="ch">
+      <h3>📋 Transactions</h3>
+      <span id="soa-txn-count" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="soa-detail" style="padding:0;overflow-x:auto"></div>
+  </div>
 </div>
 
 <!-- ══ USERS (admin only) ══ -->
@@ -962,6 +1041,7 @@ function go(page) {
   if (page==='drivers')   renderDriversPage();
   if (page==='trucks')    renderTrucksPage();
   if (page==='holidays')  renderHolidaysPage();
+  if (page==='soa')       renderSoaPage();
   if (page==='users')     renderUsersPage();
 }
 
@@ -1914,6 +1994,291 @@ function deleteHoliday() {
     renderHolidaysPage();
     if (document.getElementById('page-cal').classList.contains('active')) renderCalendar();
   });
+}
+
+// ══════════════════════════════════════════════════
+//  UNIOIL SOA
+// ══════════════════════════════════════════════════
+async function renderSoaPage() {
+  const txns = await apiGet('fuel_soa');
+  soaShowUI(txns.length > 0);
+  if (txns.length) {
+    initSoaFilters(txns);
+    renderSoaData();
+  }
+}
+
+function soaShowUI(hasData) {
+  document.getElementById('soa-upload-zone').style.display = hasData ? 'none' : '';
+  ['soa-fbar','soa-kgrid','soa-summary-card','soa-detail-card'].forEach(id => {
+    document.getElementById(id).style.display = hasData ? '' : 'none';
+  });
+}
+
+function initSoaFilters(txns) {
+  // Collect unique months/years/plates from all stored transactions
+  const months = new Set(), years = new Set(), plates = new Set();
+  txns.forEach(t => {
+    if (t.date) {
+      const d = new Date(t.date);
+      if (!isNaN(d)) { months.add(d.getMonth()+1); years.add(d.getFullYear()); }
+    }
+    if (t.plate) plates.add(t.plate.trim());
+  });
+
+  const mSel = document.getElementById('soa-month');
+  const ySel = document.getElementById('soa-year');
+  const pSel = document.getElementById('soa-plate');
+
+  const prevM = mSel.value, prevY = ySel.value, prevP = pSel.value;
+  const mNames = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+
+  const sortedMonths = [...months].sort((a,b)=>a-b);
+  const sortedYears  = [...years].sort((a,b)=>b-a);
+  const sortedPlates = [...plates].sort();
+
+  mSel.innerHTML = sortedMonths.map(m=>`<option value="${m}">${mNames[m-1]}</option>`).join('');
+  ySel.innerHTML = sortedYears.map(y=>`<option value="${y}">${y}</option>`).join('');
+  pSel.innerHTML = '<option value="">All Plates</option>' +
+    sortedPlates.map(p=>`<option value="${p}">${esc(p)}</option>`).join('');
+
+  // Default to most recent month/year
+  if (!prevM || !mSel.querySelector(`option[value="${prevM}"]`)) {
+    const now = new Date();
+    mSel.value = sortedMonths.includes(now.getMonth()+1) ? now.getMonth()+1 : sortedMonths[sortedMonths.length-1];
+    ySel.value = sortedYears[0]; // most recent year first
+  } else {
+    mSel.value = prevM; ySel.value = prevY;
+  }
+  if (prevP) pSel.value = prevP;
+}
+
+async function renderSoaData() {
+  const txns  = await apiGet('fuel_soa');
+  const month = parseInt(document.getElementById('soa-month').value);
+  const year  = parseInt(document.getElementById('soa-year').value);
+  const plate = document.getElementById('soa-plate').value;
+
+  const mNames = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  document.getElementById('soa-period-lbl').textContent = `${mNames[month-1]} ${year}`;
+
+  // Filter
+  const filtered = txns.filter(t => {
+    if (!t.date) return false;
+    const d = new Date(t.date);
+    if (isNaN(d)) return false;
+    if (d.getMonth()+1 !== month || d.getFullYear() !== year) return false;
+    if (plate && t.plate?.trim() !== plate) return false;
+    return true;
+  });
+
+  // KPI
+  const totalAmt   = filtered.reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+  const totalLit   = filtered.reduce((s,t)=>s+(parseFloat(t.liters)||0),0);
+  const truckSet   = new Set(filtered.map(t=>t.plate?.trim()).filter(Boolean));
+  document.getElementById('soa-k-amount').textContent = '₱' + totalAmt.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('soa-k-liters').textContent = totalLit.toFixed(2) + ' L';
+  document.getElementById('soa-k-trucks').textContent = truckSet.size;
+  document.getElementById('soa-k-txns').textContent   = filtered.length;
+
+  // ── Per-truck summary ──────────────────────────────
+  const truckMap = {};
+  filtered.forEach(t => {
+    const p = t.plate?.trim() || '—';
+    if (!truckMap[p]) truckMap[p] = { plate:p, name:t.vehicleName||'', txns:0, liters:0, amount:0, fuels:new Set() };
+    truckMap[p].txns++;
+    truckMap[p].liters  += parseFloat(t.liters)||0;
+    truckMap[p].amount  += parseFloat(t.amount)||0;
+    if (t.item) truckMap[p].fuels.add(t.item);
+  });
+  const truckRows = Object.values(truckMap).sort((a,b)=>b.amount-a.amount);
+  const maxAmt = Math.max(1, ...truckRows.map(r=>r.amount));
+
+  document.getElementById('soa-summary').innerHTML = truckRows.length
+    ? `<table>
+        <thead><tr>
+          <th>Plate</th><th>Vehicle</th><th>Fuel</th>
+          <th class="num">Txns</th><th class="num">Liters</th>
+          <th>Amount</th><th class="num">Total</th>
+        </tr></thead>
+        <tbody>${truckRows.map(r => {
+          const pct = Math.round((r.amount/maxAmt)*100);
+          const fuelBadges = [...r.fuels].map(f =>
+            `<span class="fuel-badge ${f.toLowerCase().includes('dsl')||f.toLowerCase().includes('diesel')?'fuel-dsl':'fuel-gas'}">${esc(f)}</span>`
+          ).join(' ');
+          return `<tr>
+            <td><span class="tag" style="background:var(--alt);color:var(--accent);font-weight:800">🚛 ${esc(r.plate)}</span></td>
+            <td style="font-size:12px;color:var(--muted)">${esc(r.name)}</td>
+            <td>${fuelBadges}</td>
+            <td class="num">${r.txns}</td>
+            <td class="num">${r.liters.toFixed(2)}</td>
+            <td style="padding:8px 14px;width:200px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;background:var(--border);border-radius:4px;height:7px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:#f97316;border-radius:4px"></div>
+                </div>
+              </div>
+            </td>
+            <td class="num" style="font-weight:800">₱${r.amount.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">No transactions for this period.</div>';
+
+  // ── Transaction detail ─────────────────────────────
+  const sorted = [...filtered].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  document.getElementById('soa-txn-count').textContent = `${sorted.length} transaction${sorted.length!==1?'s':''}`;
+  document.getElementById('soa-detail').innerHTML = sorted.length
+    ? `<table>
+        <thead><tr>
+          <th>Date</th><th>Plate</th><th>Vehicle</th><th>Fuel</th>
+          <th class="num">Liters</th><th class="num">Unit Price</th><th class="num">Amount</th>
+        </tr></thead>
+        <tbody>${sorted.map(t => {
+          const d   = new Date(t.date);
+          const ds  = isNaN(d) ? t.date : d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+          const isDsl = (t.item||'').toLowerCase().includes('dsl')||(t.item||'').toLowerCase().includes('diesel');
+          return `<tr>
+            <td style="white-space:nowrap;font-size:12px">${esc(ds)}</td>
+            <td><span class="tag" style="background:var(--alt);color:var(--accent);font-weight:700">${esc(t.plate||'—')}</span></td>
+            <td style="font-size:11px;color:var(--muted)">${esc(t.vehicleName||'')}</td>
+            <td><span class="fuel-badge ${isDsl?'fuel-dsl':'fuel-gas'}">${esc(t.item||'—')}</span></td>
+            <td class="num">${parseFloat(t.liters||0).toFixed(2)}</td>
+            <td class="num" style="color:var(--muted);font-size:12px">₱${parseFloat(t.unitPrice||0).toFixed(4)}</td>
+            <td class="num" style="font-weight:700">₱${parseFloat(t.amount||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">No transactions for this period.</div>';
+}
+
+async function handleSoaUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  toast('Parsing ' + file.name + '…');
+
+  try {
+    const buf  = await file.arrayBuffer();
+    const wb   = XLSX.read(buf, { type:'array', cellDates:true });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { raw:false, dateNF:'yyyy-mm-dd hh:mm:ss' });
+
+    if (!rows.length) { toast('No rows found in file','err'); return; }
+
+    // Detect columns (case-insensitive, flexible header names)
+    const colMap = key => {
+      const k = key.toLowerCase().replace(/[\s_]/g,'');
+      if (/^date/.test(k))       return 'date';
+      if (/plate/.test(k))       return 'plate';
+      if (/amount/.test(k))      return 'amount';
+      if (/liter/.test(k))       return 'liters';
+      if (/unit.*price|price/.test(k)) return 'unitPrice';
+      if (/item|fuel|product/.test(k)) return 'item';
+      if (/station/.test(k))     return 'station';
+      if (/odometer/.test(k))    return 'odometer';
+      if (/^name$|vehicle/.test(k)) return 'vehicleName';
+      if (/card/.test(k))        return 'cardNumber';
+      return null;
+    };
+
+    const existing = await apiGet('fuel_soa');
+    const uid_ = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    let added = 0, dupes = 0;
+
+    for (const row of rows) {
+      const mapped = {};
+      for (const [k,v] of Object.entries(row)) {
+        const field = colMap(k);
+        if (field) mapped[field] = v;
+      }
+      if (!mapped.date || !mapped.plate) continue;
+
+      // Parse date → ISO string
+      let isoDate = mapped.date;
+      if (mapped.date instanceof Date) {
+        isoDate = mapped.date.toISOString();
+      } else {
+        const parsed = new Date(mapped.date);
+        if (!isNaN(parsed)) isoDate = parsed.toISOString();
+      }
+
+      const plate = String(mapped.plate||'').trim().toUpperCase();
+
+      // Deduplicate: same plate + same date + same amount
+      const isDupe = existing.some(e =>
+        e.plate === plate &&
+        e.date === isoDate &&
+        parseFloat(e.amount) === parseFloat(mapped.amount||0)
+      );
+      if (isDupe) { dupes++; continue; }
+
+      const item = {
+        id: uid_(),
+        date: isoDate,
+        plate,
+        amount:      parseFloat(mapped.amount||0),
+        liters:      parseFloat(mapped.liters||0),
+        unitPrice:   parseFloat(mapped.unitPrice||0),
+        item:        mapped.item||'',
+        station:     mapped.station||'',
+        odometer:    mapped.odometer||'',
+        vehicleName: String(mapped.vehicleName||'').trim(),
+        cardNumber:  mapped.cardNumber||''
+      };
+      await apiSave('fuel_soa', item);
+      existing.push(item);
+      added++;
+    }
+
+    delete cache['fuel_soa'];
+    toast(`Imported ${added} transaction${added!==1?'s':''}${dupes?' ('+dupes+' skipped as duplicates)':''}`, 'ok');
+    await renderSoaPage();
+
+  } catch(e) {
+    console.error(e);
+    toast('Failed to parse file: ' + e.message, 'err');
+  }
+}
+
+function exportSoaCsv() {
+  const month = parseInt(document.getElementById('soa-month')?.value);
+  const year  = parseInt(document.getElementById('soa-year')?.value);
+  const plate = document.getElementById('soa-plate')?.value || '';
+  apiGet('fuel_soa').then(txns => {
+    const filtered = txns.filter(t => {
+      const d = new Date(t.date);
+      if (isNaN(d)) return false;
+      if (month && d.getMonth()+1 !== month) return false;
+      if (year  && d.getFullYear() !== year)  return false;
+      if (plate && (t.plate||'').trim() !== plate) return false;
+      return true;
+    }).sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+    const header = ['Date','Plate','Vehicle','Fuel','Liters','Unit Price','Amount','Station','Odometer'];
+    const rows = filtered.map(t => {
+      const d = new Date(t.date);
+      const ds = isNaN(d) ? t.date : d.toLocaleDateString('en-PH');
+      return [ds, t.plate, t.vehicleName, t.item, t.liters, t.unitPrice, t.amount, t.station, t.odometer];
+    });
+    const csv = [header,...rows].map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    a.download = `Unioil_SOA_${mNames[(month||1)-1]}_${year||'all'}.csv`;
+    a.click();
+  });
+}
+
+async function clearSoaData() {
+  if (!confirm('Delete ALL stored Unioil SOA data? This cannot be undone.')) return;
+  const txns = await apiGet('fuel_soa');
+  for (const t of txns) await apiDelete('fuel_soa', t.id);
+  delete cache['fuel_soa'];
+  toast('SOA data cleared', 'ok');
+  renderSoaPage();
 }
 
 // ══════════════════════════════════════════════════
