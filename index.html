@@ -2015,13 +2015,31 @@ function soaShowUI(hasData) {
   });
 }
 
+// Robust date parser — handles ISO, "7/1/2026 8:09 AM", "2026-07-01 08:09:09", etc.
+function parseSoaDate(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) return isNaN(raw) ? null : raw;
+  // Replace space between date and time with T for ISO compatibility
+  let s = String(raw).trim();
+  // "2026-07-01 08:09:09" → "2026-07-01T08:09:09"
+  s = s.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/, '$1T$2');
+  let d = new Date(s);
+  if (!isNaN(d)) return d;
+  // "7/1/2026 8:09:09 AM" — try replacing to standard
+  d = new Date(raw);
+  if (!isNaN(d)) return d;
+  return null;
+}
+
 function initSoaFilters(txns) {
-  // Collect unique months/years/plates from all stored transactions
-  const months = new Set(), years = new Set(), plates = new Set();
+  const monthCount = {}, years = new Set(), plates = new Set();
+
   txns.forEach(t => {
-    if (t.date) {
-      const d = new Date(t.date);
-      if (!isNaN(d)) { months.add(d.getMonth()+1); years.add(d.getFullYear()); }
+    const d = parseSoaDate(t.date);
+    if (d) {
+      const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+      monthCount[key] = (monthCount[key]||0) + 1;
+      years.add(d.getFullYear());
     }
     if (t.plate) plates.add(t.plate.trim());
   });
@@ -2034,24 +2052,46 @@ function initSoaFilters(txns) {
   const mNames = ['January','February','March','April','May','June',
                   'July','August','September','October','November','December'];
 
-  const sortedMonths = [...months].sort((a,b)=>a-b);
   const sortedYears  = [...years].sort((a,b)=>b-a);
   const sortedPlates = [...plates].sort();
 
-  mSel.innerHTML = sortedMonths.map(m=>`<option value="${m}">${mNames[m-1]}</option>`).join('');
+  // Build month options for each year
+  const allYearMonths = Object.keys(monthCount).map(k => {
+    const [y,m] = k.split('-').map(Number);
+    return { y, m, count: monthCount[k] };
+  }).sort((a,b) => b.y - a.y || b.m - a.m);
+
+  const monthsForYear = yr => allYearMonths.filter(x=>x.y===yr).sort((a,b)=>a.m-b.m);
+
   ySel.innerHTML = sortedYears.map(y=>`<option value="${y}">${y}</option>`).join('');
   pSel.innerHTML = '<option value="">All Plates</option>' +
     sortedPlates.map(p=>`<option value="${p}">${esc(p)}</option>`).join('');
 
-  // Default to most recent month/year
+  const pickYear = prevY && sortedYears.includes(parseInt(prevY)) ? parseInt(prevY) : sortedYears[0];
+  ySel.value = pickYear;
+
+  const rebuildMonths = yr => {
+    const ms = monthsForYear(yr);
+    mSel.innerHTML = ms.map(x=>`<option value="${x.m}">${mNames[x.m-1]} (${x.count})</option>`).join('');
+  };
+  rebuildMonths(pickYear);
+
+  // Default to month with MOST transactions (not current calendar month)
   if (!prevM || !mSel.querySelector(`option[value="${prevM}"]`)) {
-    const now = new Date();
-    mSel.value = sortedMonths.includes(now.getMonth()+1) ? now.getMonth()+1 : sortedMonths[sortedMonths.length-1];
-    ySel.value = sortedYears[0]; // most recent year first
+    const best = monthsForYear(pickYear).sort((a,b)=>b.count-a.count)[0];
+    mSel.value = best ? best.m : mSel.options[0]?.value;
   } else {
-    mSel.value = prevM; ySel.value = prevY;
+    mSel.value = prevM;
   }
   if (prevP) pSel.value = prevP;
+
+  // Re-build months when year changes
+  ySel.onchange = () => {
+    rebuildMonths(parseInt(ySel.value));
+    const best = monthsForYear(parseInt(ySel.value)).sort((a,b)=>b.count-a.count)[0];
+    mSel.value = best ? best.m : mSel.options[0]?.value;
+    renderSoaData();
+  };
 }
 
 async function renderSoaData() {
@@ -2067,8 +2107,8 @@ async function renderSoaData() {
   // Filter
   const filtered = txns.filter(t => {
     if (!t.date) return false;
-    const d = new Date(t.date);
-    if (isNaN(d)) return false;
+    const d = parseSoaDate(t.date);
+    if (!d) return false;
     if (d.getMonth()+1 !== month || d.getFullYear() !== year) return false;
     if (plate && t.plate?.trim() !== plate) return false;
     return true;
@@ -2128,7 +2168,7 @@ async function renderSoaData() {
     : '<div class="no-data">No transactions for this period.</div>';
 
   // ── Transaction detail ─────────────────────────────
-  const sorted = [...filtered].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const sorted = [...filtered].sort((a,b)=>(parseSoaDate(a.date)||0)-(parseSoaDate(b.date)||0));
   document.getElementById('soa-txn-count').textContent = `${sorted.length} transaction${sorted.length!==1?'s':''}`;
   document.getElementById('soa-detail').innerHTML = sorted.length
     ? `<table>
@@ -2137,8 +2177,8 @@ async function renderSoaData() {
           <th class="num">Liters</th><th class="num">Unit Price</th><th class="num">Amount</th>
         </tr></thead>
         <tbody>${sorted.map(t => {
-          const d   = new Date(t.date);
-          const ds  = isNaN(d) ? t.date : d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+          const d   = parseSoaDate(t.date);
+          const ds  = d ? d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : String(t.date);
           const isDsl = (t.item||'').toLowerCase().includes('dsl')||(t.item||'').toLowerCase().includes('diesel');
           return `<tr>
             <td style="white-space:nowrap;font-size:12px">${esc(ds)}</td>
@@ -2196,14 +2236,9 @@ async function handleSoaUpload(input) {
       }
       if (!mapped.date || !mapped.plate) continue;
 
-      // Parse date → ISO string
-      let isoDate = mapped.date;
-      if (mapped.date instanceof Date) {
-        isoDate = mapped.date.toISOString();
-      } else {
-        const parsed = new Date(mapped.date);
-        if (!isNaN(parsed)) isoDate = parsed.toISOString();
-      }
+      // Parse date → ISO string (use robust parser)
+      const parsedD = parseSoaDate(mapped.date);
+      let isoDate = parsedD ? parsedD.toISOString() : String(mapped.date||'');
 
       const plate = String(mapped.plate||'').trim().toUpperCase();
 
