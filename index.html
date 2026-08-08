@@ -1047,9 +1047,42 @@ async function apiGet(col) {
     const res  = await fetch('/api/data?col=' + col, { headers: authHdr() });
     if (res.status === 401) { logout(); return []; }
     const json = await res.json();
+    if (!res.ok) {
+      console.error(`apiGet(${col}) failed:`, json.error || res.status);
+      toast(`Cannot load ${col}: ${json.error || res.status}`, 'err');
+      return [];
+    }
     cache[col] = json.data || [];
     return cache[col];
-  } catch(e) { return []; }
+  } catch(e) {
+    console.error(`apiGet(${col}) error:`, e);
+    return [];
+  }
+}
+
+// Bulk save — one request for an entire batch
+async function apiSaveMany(col, items) {
+  delete cache[col];
+  const res  = await fetch('/api/data?col=' + col, {
+    method:'POST', headers: authHdr(), body: JSON.stringify({ op:'saveMany', items })
+  });
+  if (res.status === 401) { logout(); return null; }
+  const json = await res.json();
+  if (!res.ok) { console.error(`apiSaveMany(${col}) failed:`, json.error); return null; }
+  if (json.data) cache[col] = json.data;
+  return json;
+}
+
+// Wipe a whole collection in one request
+async function apiClear(col) {
+  delete cache[col];
+  const res  = await fetch('/api/data?col=' + col, {
+    method:'POST', headers: authHdr(), body: JSON.stringify({ op:'clear' })
+  });
+  if (res.status === 401) { logout(); return null; }
+  const json = await res.json();
+  if (json.data) cache[col] = json.data;
+  return json;
 }
 
 async function apiSave(col, item) {
@@ -1664,11 +1697,22 @@ async function renderTripAnalytics() {
   await renderDashCost();
 }
 
+// Normalize a plate for matching: "NDO 3487", "ndo-3487", "NDO3487" → "NDO3487"
+function normPlate(p) {
+  return String(p||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+
 async function renderDashCost() {
   const month    = parseInt(document.getElementById('d-month').value) || (new Date().getMonth()+1);
   const year     = parseInt(document.getElementById('d-year').value)  || new Date().getFullYear();
   const selTruck = document.getElementById('d-truck-filter').value;
   const soaType  = document.getElementById('d-soa-type')?.value || 'fuel';
+
+  // Canonical display names from the trucks list, keyed by normalized plate
+  const trucks    = await apiGet('trucks');
+  const plateDisp = {};
+  trucks.forEach(t => { plateDisp[normPlate(t.plate)] = t.plate; });
+  const selKey = selTruck ? normPlate(selTruck) : '';
 
   const pad = n => String(n).padStart(2,'0');
   const dateFrom = `${year}-${pad(month)}-01`;
@@ -1687,14 +1731,14 @@ async function renderDashCost() {
       if (!d) return false;
       return dStr(d) >= dateFrom && dStr(d) <= dateTo;
     });
-    if (selTruck) fFiltered = fFiltered.filter(t => (t.plate||'').trim() === selTruck);
+    if (selKey) fFiltered = fFiltered.filter(t => normPlate(t.plate) === selKey);
     const fMap = {};
     fFiltered.forEach(t => {
-      const p = (t.plate||'—').trim();
-      if (!fMap[p]) fMap[p] = { plate:p, amount:0, liters:0, txns:0, type:'fuel' };
-      fMap[p].amount += parseFloat(t.amount)||0;
-      fMap[p].liters += parseFloat(t.liters)||0;
-      fMap[p].txns++;
+      const k = normPlate(t.plate) || '—';
+      if (!fMap[k]) fMap[k] = { key:k, plate: plateDisp[k] || (t.plate||'—').trim(), amount:0, liters:0, txns:0 };
+      fMap[k].amount += parseFloat(t.amount)||0;
+      fMap[k].liters += parseFloat(t.liters)||0;
+      fMap[k].txns++;
     });
     fuelRows = Object.values(fMap);
   }
@@ -1708,26 +1752,26 @@ async function renderDashCost() {
       if (isNaN(d)) return false;
       return dStr(d) >= dateFrom && dStr(d) <= dateTo;
     });
-    if (selTruck) rFiltered = rFiltered.filter(t => (t.plate||'').trim() === selTruck);
+    if (selKey) rFiltered = rFiltered.filter(t => normPlate(t.plate) === selKey);
     const rMap = {};
     rFiltered.forEach(t => {
-      const p = (t.plate||'—').trim();
-      if (!rMap[p]) rMap[p] = { plate:p, amount:0, trips:0, type:'rfid' };
-      rMap[p].amount += parseFloat(t.tollFee)||0;
-      rMap[p].trips++;
+      const k = normPlate(t.plate) || '—';
+      if (!rMap[k]) rMap[k] = { key:k, plate: plateDisp[k] || (t.plate||'—').trim(), amount:0, trips:0 };
+      rMap[k].amount += parseFloat(t.tollFee)||0;
+      rMap[k].trips++;
     });
     rfidRows = Object.values(rMap);
   }
 
-  // Merge if both
+  // Merge fuel + toll on the normalized plate key
   const costMap = {};
   fuelRows.forEach(r => {
-    costMap[r.plate] = { plate:r.plate, fuel:r.amount, fuelLiters:r.liters, fuelTxns:r.txns, toll:0, tollTrips:0 };
+    costMap[r.key] = { plate:r.plate, fuel:r.amount, fuelLiters:r.liters, fuelTxns:r.txns, toll:0, tollTrips:0 };
   });
   rfidRows.forEach(r => {
-    if (!costMap[r.plate]) costMap[r.plate] = { plate:r.plate, fuel:0, fuelLiters:0, fuelTxns:0, toll:0, tollTrips:0 };
-    costMap[r.plate].toll       += r.amount;
-    costMap[r.plate].tollTrips  += r.trips;
+    if (!costMap[r.key]) costMap[r.key] = { plate:r.plate, fuel:0, fuelLiters:0, fuelTxns:0, toll:0, tollTrips:0 };
+    costMap[r.key].toll      += r.amount;
+    costMap[r.key].tollTrips += r.trips;
   });
   const rows = Object.values(costMap).sort((a,b) => (b.fuel+b.toll) - (a.fuel+a.toll));
 
@@ -2465,7 +2509,8 @@ async function handleSoaUpload(input) {
 
     const existing = await apiGet('fuel_soa');
     const uid_ = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    let added = 0, dupes = 0;
+    let added = 0, dupes = 0, skipped = 0;
+    const toSave = [];
 
     for (const row of rows) {
       const mapped = {};
@@ -2473,7 +2518,7 @@ async function handleSoaUpload(input) {
         const field = colMap(k);
         if (field) mapped[field] = v;
       }
-      if (!mapped.date || !mapped.plate) continue;
+      if (!mapped.date || !mapped.plate) { skipped++; continue; }
 
       // Parse date → ISO string (use robust parser)
       const parsedD = parseSoaDate(mapped.date);
@@ -2502,13 +2547,25 @@ async function handleSoaUpload(input) {
         vehicleName: String(mapped.vehicleName||'').trim(),
         cardNumber:  mapped.cardNumber||''
       };
-      await apiSave('fuel_soa', item);
+      toSave.push(item);
       existing.push(item);
       added++;
     }
 
+    if (!toSave.length) {
+      toast(dupes ? `All ${dupes} rows were already imported` : 'No valid rows found (need Date + Plate columns)', 'err');
+      return;
+    }
+
+    // Single bulk write instead of one request per row
+    const saveRes = await apiSaveMany('fuel_soa', toSave);
+    if (!saveRes) {
+      toast('Save failed — check that the server allows the fuel_soa collection', 'err');
+      return;
+    }
+
     delete cache['fuel_soa'];
-    toast(`Imported ${added} transaction${added!==1?'s':''}${dupes?' ('+dupes+' skipped as duplicates)':''}`, 'ok');
+    toast(`Imported ${added} transaction${added!==1?'s':''}${dupes?' ('+dupes+' duplicates skipped)':''}`, 'ok');
     await renderSoaPage();
 
   } catch(e) {
@@ -2548,8 +2605,7 @@ function exportSoaCsv() {
 
 async function clearSoaData() {
   if (!confirm('Delete ALL stored Unioil SOA data? This cannot be undone.')) return;
-  const txns = await apiGet('fuel_soa');
-  for (const t of txns) await apiDelete('fuel_soa', t.id);
+  await apiClear('fuel_soa');
   delete cache['fuel_soa'];
   toast('SOA data cleared', 'ok');
   renderSoaPage();
@@ -2715,13 +2771,26 @@ async function handleRfidUpload(input) {
     if (!records.length) { toast('No transactions found in PDF','err'); return; }
     const existing = await apiGet('rfid_soa');
     let added = 0, dupes = 0;
+    const toSave = [];
     for (const rec of records) {
       const isDupe = existing.some(e => e.plate === rec.plate && e.refNo === rec.refNo);
       if (isDupe) { dupes++; continue; }
-      await apiSave('rfid_soa', rec);
+      toSave.push(rec);
       existing.push(rec);
       added++;
     }
+
+    if (!toSave.length) {
+      toast(`All ${dupes} trips were already imported`, 'err');
+      return;
+    }
+
+    const saveRes = await apiSaveMany('rfid_soa', toSave);
+    if (!saveRes) {
+      toast('Save failed — check that the server allows the rfid_soa collection', 'err');
+      return;
+    }
+
     delete cache['rfid_soa'];
     toast(`Imported ${added} trip${added!==1?'s':''}${dupes?' ('+dupes+' duplicates skipped)':''}`, 'ok');
     await renderRfidSoaPage();
@@ -2868,8 +2937,7 @@ function exportRfidCsv() {
 
 async function clearRfidData() {
   if (!confirm('Delete ALL stored RFID SOA data? This cannot be undone.')) return;
-  const txns = await apiGet('rfid_soa');
-  for (const t of txns) await apiDelete('rfid_soa', t.id);
+  await apiClear('rfid_soa');
   delete cache['rfid_soa'];
   toast('RFID data cleared', 'ok');
   renderRfidSoaPage();
