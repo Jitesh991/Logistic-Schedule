@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SII Logistics Schedule</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -322,6 +323,9 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   color:#0891b2;background:#ecfeff;border:1px solid #a5f3fc;border-radius:4px;
   padding:2px 7px;margin-left:6px;vertical-align:middle}
 
+/* Numeric column alignment */
+.num { text-align: right }
+
 /* Print styles removed — use Save PNG button instead */
 </style>
 </head>
@@ -377,6 +381,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <button class="ni role-setup" id="nav-trucks"    onclick="go('trucks')">   <span>🚛</span> Trucks</button>
   <button class="ni role-setup" id="nav-holidays"  onclick="go('holidays')"> <span>🎌</span> Holidays</button>
   <button class="ni role-setup" id="nav-soa"       onclick="go('soa')">      <span>⛽</span> Unioil SOA</button>
+  <button class="ni role-setup" id="nav-rfid"      onclick="go('rfid')">     <span>🛣️</span> RFID / Toll</button>
   <div class="ns role-admin">Admin</div>
   <button class="ni role-admin" id="nav-users"     onclick="go('users')">    <span>🔑</span> Users</button>
 </aside>
@@ -446,6 +451,14 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <label>Truck</label>
       <select id="d-truck-filter" onchange="renderTripAnalytics()"><option value="">All Trucks</option></select>
     </div>
+    <div class="dash-fg">
+      <label>SOA Type</label>
+      <select id="d-soa-type" onchange="renderTripAnalytics()">
+        <option value="fuel">⛽ Unioil Fuel</option>
+        <option value="rfid">🛣️ RFID / Toll</option>
+        <option value="both">Both</option>
+      </select>
+    </div>
     <span class="period-badge" id="d-period-badge">—</span>
   </div>
   <div class="dash-analytics">
@@ -457,6 +470,16 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <div class="ch"><h3>🚛 Trips per Truck</h3><span id="truck-trip-total" style="font-size:11px;color:var(--muted)"></span></div>
       <div id="trips-by-truck" style="padding:0"></div>
     </div>
+  </div>
+
+  <!-- Cost Section -->
+  <div class="card" id="dash-cost-card">
+    <div class="ch">
+      <h3 id="dash-cost-title">⛽ Fuel Cost This Period</h3>
+      <span id="dash-cost-total" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="dash-cost-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:12px 16px 0"></div>
+    <div id="dash-cost-body" style="padding:0"></div>
   </div>
 
   <div class="card">
@@ -591,6 +614,55 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <span id="soa-txn-count" style="font-size:11px;color:var(--muted)"></span>
     </div>
     <div id="soa-detail" style="padding:0;overflow-x:auto"></div>
+  </div>
+</div>
+
+<!-- ══ RFID / TOLL SOA ══ -->
+<div class="page" id="page-rfid">
+  <div class="ph">
+    <div><h2>🛣️ RFID / Toll SOA</h2><p>Upload SMC Skyway RFID transaction reports (PDF)</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="exportRfidCsv()">⬇ Export CSV</button>
+      <button class="btn btn-p btn-sm" onclick="document.getElementById('rfid-file-input').click()">⬆ Upload PDF</button>
+      <input type="file" id="rfid-file-input" accept=".pdf" style="display:none" onchange="handleRfidUpload(this)">
+    </div>
+  </div>
+
+  <div class="upload-zone" id="rfid-upload-zone" onclick="document.getElementById('rfid-file-input').click()">
+    <div class="upload-zone-icon">🛣️</div>
+    <p><strong>Click to upload</strong> your SMC Skyway RFID SOA (.pdf)</p>
+    <p style="margin-top:4px;font-size:11px">Plate · Date · Toll Fee · Zone — all parsed automatically from the PDF text</p>
+  </div>
+
+  <div class="soa-fbar" id="rfid-fbar" style="display:none">
+    <div class="soa-fg"><label>Month</label>
+      <select id="rfid-month" onchange="renderRfidData()"></select></div>
+    <div class="soa-fg"><label>Year</label>
+      <select id="rfid-year" onchange="renderRfidData()"></select></div>
+    <div class="soa-fg"><label>Plate</label>
+      <select id="rfid-plate" onchange="renderRfidData()"><option value="">All Plates</option></select></div>
+    <span class="period-badge" id="rfid-period-lbl">—</span>
+    <button class="btn btn-r btn-xs" style="margin-left:auto" onclick="clearRfidData()">🗑 Clear All</button>
+  </div>
+
+  <div class="soa-kgrid" id="rfid-kgrid" style="display:none">
+    <div class="kpi blue">  <div class="kv" id="rfid-k-amount">₱0</div><div class="kl">Total Toll</div></div>
+    <div class="kpi green"> <div class="kv" id="rfid-k-trips">0</div><div class="kl">Trips</div></div>
+    <div class="kpi amber"> <div class="kv" id="rfid-k-trucks">0</div><div class="kl">Trucks</div></div>
+    <div class="kpi purple"><div class="kv" id="rfid-k-refs">0</div><div class="kl">Toll Refs</div></div>
+  </div>
+
+  <div class="card" id="rfid-summary-card" style="display:none">
+    <div class="ch"><h3>🚛 Summary per Truck</h3></div>
+    <div id="rfid-summary" style="padding:0"></div>
+  </div>
+
+  <div class="card" id="rfid-detail-card" style="display:none">
+    <div class="ch">
+      <h3>📋 Transactions</h3>
+      <span id="rfid-txn-count" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="rfid-detail" style="padding:0;overflow-x:auto"></div>
   </div>
 </div>
 
@@ -1042,6 +1114,7 @@ function go(page) {
   if (page==='trucks')    renderTrucksPage();
   if (page==='holidays')  renderHolidaysPage();
   if (page==='soa')       renderSoaPage();
+  if (page==='rfid')      renderRfidSoaPage();
   if (page==='users')     renderUsersPage();
 }
 
@@ -1553,6 +1626,139 @@ async function renderTripAnalytics() {
         </tr>`;
       }).join('') + `</tbody></table>`
     : '<div class="no-data">No trips found for this period.</div>';
+
+  // Also refresh the cost section
+  await renderDashCost();
+}
+
+async function renderDashCost() {
+  const month    = parseInt(document.getElementById('d-month').value) || (new Date().getMonth()+1);
+  const year     = parseInt(document.getElementById('d-year').value)  || new Date().getFullYear();
+  const selTruck = document.getElementById('d-truck-filter').value;
+  const soaType  = document.getElementById('d-soa-type')?.value || 'fuel';
+
+  const pad = n => String(n).padStart(2,'0');
+  const dateFrom = `${year}-${pad(month)}-01`;
+  const lastDay  = new Date(year, month, 0).getDate();
+  const dateTo   = `${year}-${pad(month)}-${pad(lastDay)}`;
+  const mNames   = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  let fuelRows = [], rfidRows = [];
+
+  // Load Unioil fuel
+  if (soaType === 'fuel' || soaType === 'both') {
+    const fuelTxns = await apiGet('fuel_soa');
+    let fFiltered  = fuelTxns.filter(t => {
+      if (!t.date) return false;
+      const d = parseSoaDate(t.date);
+      if (!d) return false;
+      return dStr(d) >= dateFrom && dStr(d) <= dateTo;
+    });
+    if (selTruck) fFiltered = fFiltered.filter(t => (t.plate||'').trim() === selTruck);
+    const fMap = {};
+    fFiltered.forEach(t => {
+      const p = (t.plate||'—').trim();
+      if (!fMap[p]) fMap[p] = { plate:p, amount:0, liters:0, txns:0, type:'fuel' };
+      fMap[p].amount += parseFloat(t.amount)||0;
+      fMap[p].liters += parseFloat(t.liters)||0;
+      fMap[p].txns++;
+    });
+    fuelRows = Object.values(fMap);
+  }
+
+  // Load RFID toll
+  if (soaType === 'rfid' || soaType === 'both') {
+    const rfidTxns = await apiGet('rfid_soa');
+    let rFiltered  = rfidTxns.filter(t => {
+      if (!t.date) return false;
+      const d = new Date(t.date);
+      if (isNaN(d)) return false;
+      return dStr(d) >= dateFrom && dStr(d) <= dateTo;
+    });
+    if (selTruck) rFiltered = rFiltered.filter(t => (t.plate||'').trim() === selTruck);
+    const rMap = {};
+    rFiltered.forEach(t => {
+      const p = (t.plate||'—').trim();
+      if (!rMap[p]) rMap[p] = { plate:p, amount:0, trips:0, type:'rfid' };
+      rMap[p].amount += parseFloat(t.tollFee)||0;
+      rMap[p].trips++;
+    });
+    rfidRows = Object.values(rMap);
+  }
+
+  // Merge if both
+  const costMap = {};
+  fuelRows.forEach(r => {
+    costMap[r.plate] = { plate:r.plate, fuel:r.amount, fuelLiters:r.liters, fuelTxns:r.txns, toll:0, tollTrips:0 };
+  });
+  rfidRows.forEach(r => {
+    if (!costMap[r.plate]) costMap[r.plate] = { plate:r.plate, fuel:0, fuelLiters:0, fuelTxns:0, toll:0, tollTrips:0 };
+    costMap[r.plate].toll       += r.amount;
+    costMap[r.plate].tollTrips  += r.trips;
+  });
+  const rows = Object.values(costMap).sort((a,b) => (b.fuel+b.toll) - (a.fuel+a.toll));
+
+  const totalFuel = rows.reduce((s,r)=>s+r.fuel,0);
+  const totalToll = rows.reduce((s,r)=>s+r.toll,0);
+  const totalCost = totalFuel + totalToll;
+
+  // Update title & total
+  const titles = { fuel:'⛽ Fuel Cost This Period', rfid:'🛣️ Toll Cost This Period', both:'⛽🛣️ Fuel + Toll This Period' };
+  document.getElementById('dash-cost-title').textContent = titles[soaType] || titles.fuel;
+  document.getElementById('dash-cost-total').textContent = totalCost > 0
+    ? '₱' + totalCost.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' total'
+    : '';
+
+  // KPI cards
+  const kpiEl = document.getElementById('dash-cost-kpis');
+  if (soaType === 'fuel') {
+    const totalLit = rows.reduce((s,r)=>s+r.fuelLiters,0);
+    const avgPrice = totalLit > 0 ? totalFuel/totalLit : 0;
+    kpiEl.innerHTML = `
+      <div class="kpi amber"><div class="kv">₱${totalFuel.toLocaleString('en-PH',{maximumFractionDigits:0})}</div><div class="kl">Total Fuel Cost</div></div>
+      <div class="kpi green"><div class="kv">${totalLit.toFixed(1)} L</div><div class="kl">Total Liters</div></div>
+      <div class="kpi blue"><div class="kv">₱${avgPrice.toFixed(2)}</div><div class="kl">Avg Price/Liter</div></div>`;
+  } else if (soaType === 'rfid') {
+    const totalTrips = rows.reduce((s,r)=>s+r.tollTrips,0);
+    kpiEl.innerHTML = `
+      <div class="kpi blue"><div class="kv">₱${totalToll.toLocaleString('en-PH',{maximumFractionDigits:0})}</div><div class="kl">Total Toll</div></div>
+      <div class="kpi green"><div class="kv">${totalTrips}</div><div class="kl">Toll Trips</div></div>
+      <div class="kpi amber"><div class="kv">${rows.length}</div><div class="kl">Trucks</div></div>`;
+  } else {
+    kpiEl.innerHTML = `
+      <div class="kpi amber"><div class="kv">₱${totalFuel.toLocaleString('en-PH',{maximumFractionDigits:0})}</div><div class="kl">Fuel Cost</div></div>
+      <div class="kpi blue"><div class="kv">₱${totalToll.toLocaleString('en-PH',{maximumFractionDigits:0})}</div><div class="kl">Toll Cost</div></div>
+      <div class="kpi purple"><div class="kv">₱${totalCost.toLocaleString('en-PH',{maximumFractionDigits:0})}</div><div class="kl">Combined Cost</div></div>`;
+  }
+
+  const maxCost = Math.max(1, ...rows.map(r=>r.fuel+r.toll));
+  document.getElementById('dash-cost-body').innerHTML = rows.length
+    ? `<table>
+        <thead><tr><th>Plate</th>
+          ${soaType!=='rfid'?'<th class="num">Fuel Cost</th>':''}
+          ${soaType!=='fuel'?'<th class="num">Toll Cost</th>':''}
+          ${soaType==='both'?'<th class="num">Combined</th>':''}
+          <th>Bar</th>
+        </tr></thead>
+        <tbody>${rows.map(r => {
+          const total = r.fuel + r.toll;
+          const pct   = Math.round((total/maxCost)*100);
+          return `<tr>
+            <td><span class="tag" style="background:var(--alt);color:var(--accent)">🚛 ${esc(r.plate)}</span></td>
+            ${soaType!=='rfid'?`<td class="num" style="font-weight:700;color:#f97316">₱${r.fuel.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`:''}
+            ${soaType!=='fuel'?`<td class="num" style="font-weight:700;color:#0891b2">₱${r.toll.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`:''}
+            ${soaType==='both'?`<td class="num" style="font-weight:800">₱${total.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>`:''}
+            <td style="padding:8px 14px;min-width:150px">
+              <div class="trip-bar-wrap">
+                <div class="trip-bar-track">
+                  <div class="trip-bar-fill" style="width:${pct}%;background:#f97316"></div>
+                </div>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">No cost data for this period. Upload Unioil SOA and/or RFID SOA first.</div>';
 }
 
 function dashTable(arr, cMap, showDate=false) {
@@ -2314,6 +2520,323 @@ async function clearSoaData() {
   delete cache['fuel_soa'];
   toast('SOA data cleared', 'ok');
   renderSoaPage();
+}
+
+// ══════════════════════════════════════════════════
+//  RFID / TOLL SOA
+// ══════════════════════════════════════════════════
+async function renderRfidSoaPage() {
+  const txns = await apiGet('rfid_soa');
+  rfidShowUI(txns.length > 0);
+  if (txns.length) {
+    initRfidFilters(txns);
+    renderRfidData();
+  }
+}
+
+function rfidShowUI(hasData) {
+  document.getElementById('rfid-upload-zone').style.display = hasData ? 'none' : '';
+  ['rfid-fbar','rfid-kgrid','rfid-summary-card','rfid-detail-card'].forEach(id => {
+    document.getElementById(id).style.display = hasData ? '' : 'none';
+  });
+}
+
+function initRfidFilters(txns) {
+  const monthCount = {}, years = new Set(), plates = new Set();
+  txns.forEach(t => {
+    const d = t.date ? new Date(t.date) : null;
+    if (d && !isNaN(d)) {
+      const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+      monthCount[key] = (monthCount[key]||0) + 1;
+      years.add(d.getFullYear());
+    }
+    if (t.plate) plates.add(t.plate.trim());
+  });
+  const mSel = document.getElementById('rfid-month');
+  const ySel = document.getElementById('rfid-year');
+  const pSel = document.getElementById('rfid-plate');
+  const prevM = mSel.value, prevY = ySel.value, prevP = pSel.value;
+  const mNames = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const sortedYears  = [...years].sort((a,b)=>b-a);
+  const sortedPlates = [...plates].sort();
+  const allYM = Object.keys(monthCount).map(k => {
+    const [y,m] = k.split('-').map(Number);
+    return { y, m, count: monthCount[k] };
+  });
+  const monthsForYear = yr => allYM.filter(x=>x.y===yr).sort((a,b)=>a.m-b.m);
+  ySel.innerHTML = sortedYears.map(y=>`<option value="${y}">${y}</option>`).join('');
+  pSel.innerHTML = '<option value="">All Plates</option>' +
+    sortedPlates.map(p=>`<option value="${p}">${esc(p)}</option>`).join('');
+  const pickYear = prevY && sortedYears.includes(parseInt(prevY)) ? parseInt(prevY) : sortedYears[0];
+  ySel.value = pickYear;
+  const rebuildMonths = yr => {
+    const ms = monthsForYear(yr);
+    mSel.innerHTML = ms.map(x=>`<option value="${x.m}">${mNames[x.m-1]} (${x.count})</option>`).join('');
+  };
+  rebuildMonths(pickYear);
+  if (!prevM || !mSel.querySelector(`option[value="${prevM}"]`)) {
+    const best = monthsForYear(pickYear).sort((a,b)=>b.count-a.count)[0];
+    mSel.value = best ? best.m : mSel.options[0]?.value;
+  } else { mSel.value = prevM; }
+  if (prevP) pSel.value = prevP;
+  ySel.onchange = () => {
+    rebuildMonths(parseInt(ySel.value));
+    const best = monthsForYear(parseInt(ySel.value)).sort((a,b)=>b.count-a.count)[0];
+    mSel.value = best ? best.m : mSel.options[0]?.value;
+    renderRfidData();
+  };
+}
+
+async function renderRfidData() {
+  const txns  = await apiGet('rfid_soa');
+  const month = parseInt(document.getElementById('rfid-month').value);
+  const year  = parseInt(document.getElementById('rfid-year').value);
+  const plate = document.getElementById('rfid-plate').value;
+  const mNames = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  document.getElementById('rfid-period-lbl').textContent = `${mNames[month-1]} ${year}`;
+
+  const filtered = txns.filter(t => {
+    if (!t.date) return false;
+    const d = new Date(t.date);
+    if (isNaN(d)) return false;
+    if (d.getMonth()+1 !== month || d.getFullYear() !== year) return false;
+    if (plate && t.plate?.trim() !== plate) return false;
+    return true;
+  });
+
+  const totalAmt = filtered.reduce((s,t)=>s+(parseFloat(t.tollFee)||0),0);
+  const truckSet = new Set(filtered.map(t=>t.plate?.trim()).filter(Boolean));
+  document.getElementById('rfid-k-amount').textContent = '₱' + totalAmt.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2});
+  document.getElementById('rfid-k-trips').textContent  = filtered.length;
+  document.getElementById('rfid-k-trucks').textContent = truckSet.size;
+  document.getElementById('rfid-k-refs').textContent   = filtered.length;
+
+  const truckMap = {};
+  filtered.forEach(t => {
+    const p = t.plate?.trim() || '—';
+    if (!truckMap[p]) truckMap[p] = { plate:p, trips:0, amount:0, zones:new Set() };
+    truckMap[p].trips++;
+    truckMap[p].amount += parseFloat(t.tollFee)||0;
+    (t.zones||[]).forEach(z => truckMap[p].zones.add(z));
+  });
+  const truckRows = Object.values(truckMap).sort((a,b)=>b.amount-a.amount);
+  const maxAmt = Math.max(1,...truckRows.map(r=>r.amount));
+
+  document.getElementById('rfid-summary').innerHTML = truckRows.length
+    ? `<table>
+        <thead><tr><th>Plate</th><th>Zones</th><th class="num">Trips</th><th class="num">Total Toll</th></tr></thead>
+        <tbody>${truckRows.map(r => {
+          const pct = Math.round((r.amount/maxAmt)*100);
+          const zoneBadges = [...r.zones].map(z =>
+            `<span class="tag" style="background:#dbeafe;color:#1e40af;font-size:10px">${esc(z)}</span>`
+          ).join(' ');
+          return `<tr>
+            <td><span class="tag" style="background:var(--alt);color:var(--accent);font-weight:800">🚛 ${esc(r.plate)}</span></td>
+            <td>${zoneBadges}</td>
+            <td class="num">${r.trips}</td>
+            <td style="padding:8px 14px;min-width:220px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;background:var(--border);border-radius:4px;height:7px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:#0891b2;border-radius:4px"></div>
+                </div>
+                <span style="font-weight:800;font-size:13px;white-space:nowrap">₱${r.amount.toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">No transactions for this period.</div>';
+
+  const sorted = [...filtered].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  document.getElementById('rfid-txn-count').textContent = `${sorted.length} trip${sorted.length!==1?'s':''}`;
+  document.getElementById('rfid-detail').innerHTML = sorted.length
+    ? `<table>
+        <thead><tr><th>Date &amp; Time</th><th>Plate</th><th>Zones</th><th>Ref No.</th><th class="num">Toll Fee</th></tr></thead>
+        <tbody>${sorted.map(t => {
+          const d  = new Date(t.date);
+          const ds = isNaN(d) ? String(t.date) : d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'});
+          const zoneBadges = (t.zones||[]).map(z =>
+            `<span class="tag" style="background:#dbeafe;color:#1e40af;font-size:10px">${esc(z)}</span>`
+          ).join(' ');
+          return `<tr>
+            <td style="white-space:nowrap;font-size:12px">${esc(ds)}</td>
+            <td><span class="tag" style="background:var(--alt);color:var(--accent);font-weight:700">${esc(t.plate||'—')}</span></td>
+            <td>${zoneBadges}</td>
+            <td style="font-size:11px;color:var(--muted)">${esc(t.refNo||'—')}</td>
+            <td class="num" style="font-weight:700">₱${parseFloat(t.tollFee||0).toLocaleString('en-PH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">No transactions for this period.</div>';
+}
+
+async function handleRfidUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  toast('Parsing PDF…');
+  try {
+    const records = await parseRfidPdf(file);
+    if (!records.length) { toast('No transactions found in PDF','err'); return; }
+    const existing = await apiGet('rfid_soa');
+    let added = 0, dupes = 0;
+    for (const rec of records) {
+      const isDupe = existing.some(e => e.plate === rec.plate && e.refNo === rec.refNo);
+      if (isDupe) { dupes++; continue; }
+      await apiSave('rfid_soa', rec);
+      existing.push(rec);
+      added++;
+    }
+    delete cache['rfid_soa'];
+    toast(`Imported ${added} trip${added!==1?'s':''}${dupes?' ('+dupes+' duplicates skipped)':''}`, 'ok');
+    await renderRfidSoaPage();
+  } catch(e) {
+    console.error(e);
+    toast('Failed to parse PDF: ' + e.message, 'err');
+  }
+}
+
+async function parseRfidPdf(file) {
+  // Use PDF.js (loaded from CDN)
+  const pdfjsLib = window.pdfjsLib || window['pdfjs-dist/build/pdf'];
+  if (!pdfjsLib) throw new Error('PDF.js not available');
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  const ab  = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let allText = '';
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page    = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // Group text items by Y coordinate to reconstruct lines
+    const TOL = 3;
+    const lineMap = {};
+    for (const item of content.items) {
+      if (!item.str) continue;
+      const y = Math.round(item.transform[5] / TOL) * TOL;
+      if (!lineMap[y]) lineMap[y] = [];
+      lineMap[y].push({ x: item.transform[4], str: item.str });
+    }
+    const ys = Object.keys(lineMap).map(Number).sort((a,b)=>b-a);
+    allText += ys.map(y =>
+      lineMap[y].sort((a,b)=>a.x-b.x).map(i=>i.str).join(' ')
+    ).join('\n') + '\n';
+  }
+
+  return parseRfidText(allText);
+}
+
+function parseRfidText(rawText) {
+  const lines   = rawText.split('\n');
+  const records = [];
+  const uid_    = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
+  let currentPlate = '', currentTag = '';
+  let currentRef = '', currentDate = null, currentZones = [];
+  let inRef = false;
+
+  // Patterns
+  const tagRx = /TagNumber\s*:\s*(\d+)\s+Plate\s+Number\s*:\s*([A-Z0-9]+)/i;
+  const refRx = /(?:Ref|IER)\s+No\.\s*:\s*(\d+)/i;
+  // Transaction line: MM/DD/YYYY H:MM:SS or HH:MM:SS then esiNo then ZONE
+  const txnRx = /^(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2}:\d{2})\s+\S+\s+([A-Z]{3,})/;
+  const totRx = /Total\s*:\s*Php\s*([\d,]+\.?\d*)/i;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // New tag/plate section
+    const tagM = line.match(tagRx);
+    if (tagM) {
+      currentTag   = tagM[1].trim();
+      currentPlate = tagM[2].trim().toUpperCase();
+      inRef = false; currentRef = ''; currentDate = null; currentZones = [];
+      continue;
+    }
+
+    // New reference group
+    const refM = line.match(refRx);
+    if (refM) {
+      inRef = true; currentRef = refM[1].trim();
+      currentDate = null; currentZones = [];
+      continue;
+    }
+
+    if (inRef) {
+      // Transaction leg
+      const txM = line.match(txnRx);
+      if (txM) {
+        if (!currentDate) {
+          const parts = txM[1].split('/');
+          const mo = parts[0].padStart(2,'0'), dy = parts[1].padStart(2,'0'), yr = parts[2];
+          currentDate = new Date(`${yr}-${mo}-${dy}T${txM[2]}`);
+        }
+        const zone = txM[3];
+        if (zone && !currentZones.includes(zone)) currentZones.push(zone);
+        continue;
+      }
+
+      // Total for this reference group
+      const totM = line.match(totRx);
+      if (totM && currentRef && currentPlate) {
+        const fee = parseFloat(totM[1].replace(/,/g,''));
+        records.push({
+          id:        uid_(),
+          date:      currentDate ? currentDate.toISOString() : '',
+          plate:     currentPlate,
+          tagNumber: currentTag,
+          refNo:     currentRef,
+          tollFee:   fee,
+          zones:     [...currentZones]
+        });
+        inRef = false;
+        continue;
+      }
+    }
+  }
+  return records;
+}
+
+function exportRfidCsv() {
+  const month = parseInt(document.getElementById('rfid-month')?.value);
+  const year  = parseInt(document.getElementById('rfid-year')?.value);
+  const plate = document.getElementById('rfid-plate')?.value || '';
+  apiGet('rfid_soa').then(txns => {
+    const filtered = txns.filter(t => {
+      const d = new Date(t.date);
+      if (isNaN(d)) return false;
+      if (month && d.getMonth()+1 !== month) return false;
+      if (year  && d.getFullYear() !== year)  return false;
+      if (plate && (t.plate||'').trim() !== plate) return false;
+      return true;
+    }).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const header = ['Date','Plate','Tag Number','Ref No.','Zones','Toll Fee'];
+    const rows = filtered.map(t => {
+      const d  = new Date(t.date);
+      const ds = isNaN(d) ? t.date : d.toLocaleDateString('en-PH');
+      return [ds, t.plate, t.tagNumber, t.refNo, (t.zones||[]).join('+'), t.tollFee];
+    });
+    const csv = [header,...rows].map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\n');
+    const a   = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    a.download = `RFID_SOA_${mNames[(month||1)-1]}_${year||'all'}.csv`;
+    a.click();
+  });
+}
+
+async function clearRfidData() {
+  if (!confirm('Delete ALL stored RFID SOA data? This cannot be undone.')) return;
+  const txns = await apiGet('rfid_soa');
+  for (const t of txns) await apiDelete('rfid_soa', t.id);
+  delete cache['rfid_soa'];
+  toast('RFID data cleared', 'ok');
+  renderRfidSoaPage();
 }
 
 // ══════════════════════════════════════════════════
