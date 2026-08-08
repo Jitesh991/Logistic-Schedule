@@ -1492,6 +1492,7 @@ async function renderDashboard() {
 
   // Populate & render trip analytics
   await initDashFilters();
+  await snapDashToSoaMonth();   // auto-switch to month with SOA data if current month is empty
   await renderTripAnalytics();
 }
 
@@ -1531,6 +1532,38 @@ async function initDashFilters() {
   tSel.innerHTML = '<option value="">All Trucks</option>' +
     trucks.map(t => `<option value="${t.plate}">${esc(t.plate)}</option>`).join('');
   if (prevT) tSel.value = prevT;
+}
+
+// Auto-switch dashboard month to the one with the most SOA data if current month is empty
+async function snapDashToSoaMonth() {
+  const mSel = document.getElementById('d-month');
+  const ySel = document.getElementById('d-year');
+  if (mSel.dataset.soaSnapped) return; // only snap once per session
+  mSel.dataset.soaSnapped = '1';
+
+  const [fuelTxns, rfidTxns] = await Promise.all([apiGet('fuel_soa'), apiGet('rfid_soa')]);
+  const allTxns = [...fuelTxns, ...rfidTxns];
+  if (!allTxns.length) return;
+
+  const monthCount = {};
+  allTxns.forEach(t => {
+    const raw = t.date;
+    if (!raw) return;
+    const d = t.tollFee !== undefined ? new Date(raw) : parseSoaDate(raw);
+    if (!d || isNaN(d)) return;
+    const key = `${d.getFullYear()}-${d.getMonth()+1}`;
+    monthCount[key] = (monthCount[key]||0) + 1;
+  });
+
+  const curKey = `${ySel.value}-${mSel.value}`;
+  if (monthCount[curKey]) return; // current month already has data
+
+  // Switch to the month with most data
+  const best = Object.entries(monthCount).sort((a,b) => b[1]-a[1])[0];
+  if (!best) return;
+  const [bestY, bestM] = best[0].split('-');
+  ySel.value = bestY;
+  mSel.value = bestM;
 }
 
 async function renderTripAnalytics() {
@@ -2774,7 +2807,10 @@ function parseRfidText(rawText) {
         if (!currentDate) {
           const parts = txM[1].split('/');
           const mo = parts[0].padStart(2,'0'), dy = parts[1].padStart(2,'0'), yr = parts[2];
-          currentDate = new Date(`${yr}-${mo}-${dy}T${txM[2]}`);
+          // Pad hour to 2 digits — "9:10:27" → "09:10:27" (ISO requires HH)
+          const timeStr = txM[2].split(':').map(p => p.padStart(2,'0')).join(':');
+          const dt = new Date(`${yr}-${mo}-${dy}T${timeStr}`);
+          if (!isNaN(dt)) currentDate = dt;
         }
         const zone = txM[3];
         if (zone && !currentZones.includes(zone)) currentZones.push(zone);
@@ -2787,7 +2823,7 @@ function parseRfidText(rawText) {
         const fee = parseFloat(totM[1].replace(/,/g,''));
         records.push({
           id:        uid_(),
-          date:      currentDate ? currentDate.toISOString() : '',
+          date:      (currentDate && !isNaN(currentDate)) ? currentDate.toISOString() : '',
           plate:     currentPlate,
           tagNumber: currentTag,
           refNo:     currentRef,
