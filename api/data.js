@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { put, del } = require('@vercel/blob');   // list/head no longer needed
 
 const SECRET     = process.env.JWT_SECRET || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
-const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays'];
+const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays', 'fuel_soa', 'rfid_soa'];
 
 // ── Derive the public blob store base URL from the token ──────────────────────
 // Token format: vercel_blob_rw_{storeId}_{secret}
@@ -104,7 +104,27 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'POST') {
     if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
-    const { op, item, id } = req.body || {};
+    const { op, item, items, id } = req.body || {};
+
+    // Bulk insert/update — one blob write for the whole batch
+    if (op === 'saveMany') {
+      if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+      let data = await readCol(col);
+      const byId = new Map(data.map(x => [x.id, x]));
+      for (const it of items) {
+        if (!it || !it.id) continue;
+        byId.set(it.id, it);
+      }
+      data = [...byId.values()];
+      await writeCol(col, data);
+      return res.json({ ok: true, data, saved: items.length });
+    }
+
+    // Wipe an entire collection — one blob write
+    if (op === 'clear') {
+      await writeCol(col, []);
+      return res.json({ ok: true, data: [] });
+    }
 
     if (op === 'save') {
       if (!item || !item.id) return res.status(400).json({ error: 'Item with id required' });
