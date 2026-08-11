@@ -6,6 +6,6 @@
     "node": "20.x"
   },
   "dependencies": {
-    "@vercel/blob": "latest"
+    "@vercel/blob": "^2.7.0"
   }
 }
