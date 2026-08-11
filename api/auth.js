@@ -1,11 +1,12 @@
 const crypto = require('crypto');
-const { put, list, del, head } = require('@vercel/blob');
+const { put } = require('@vercel/blob');   // put only — no list/del/head/copy
 
-const SECRET      = process.env.JWT_SECRET     || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
-const SALT        = process.env.PASSWORD_SALT  || 'sii-salt-CHANGE-IN-PRODUCTION';
-const BLOB_PREFIX = 'sii/users.json';
-const TOKEN_TTL   = 8 * 60 * 60 * 1000;
+const SECRET    = process.env.JWT_SECRET    || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
+const SALT      = process.env.PASSWORD_SALT || 'sii-salt-CHANGE-IN-PRODUCTION';
+const BLOB_PATH = 'sii/users.json';
+const TOKEN_TTL = 8 * 60 * 60 * 1000;
 
+// ── Tokens ───────────────────────────────────────────────────────────────────
 function hashPw(pw) {
   return crypto.createHash('sha256').update(SALT + pw + SALT).digest('hex');
 }
@@ -28,37 +29,43 @@ function verifyToken(token) {
   } catch { return null; }
 }
 
-async function readBlob(url) {
-  try {
-    const meta = await head(url);
-    const res  = await fetch(meta.downloadUrl || url);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    try {
-      const res = await fetch(url);
-      return res.ok ? await res.text() : null;
-    } catch { return null; }
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+//  USER STORE — zero advanced operations
+//
+//  Was: list() to find the blob + head() to resolve it  = 2 advanced ops
+//       per getUsers(), and list()+del() per saveUsers() = 2 more.
+//  Now: the public URL is derived from the token, and put() overwrites
+//       in place. Reads cost nothing; writes cost 1 simple op.
+// ─────────────────────────────────────────────────────────────────────────────
+function usersUrl() {
+  const parts = (process.env.BLOB_READ_WRITE_TOKEN || '').split('_');
+  if (parts.length < 4) return null;
+  return `https://${parts[3]}.public.blob.vercel-storage.com/${BLOB_PATH}`;
 }
 
 async function getUsers() {
+  const url = usersUrl();
+  if (!url) { console.error('BLOB_READ_WRITE_TOKEN missing or malformed'); return null; }
   try {
-    const { blobs } = await list({ prefix: BLOB_PREFIX });
-    if (!blobs.length) return null;
-    const sorted = blobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    const text = await readBlob(sorted[0].url);
-    return text ? JSON.parse(text) : null;
-  } catch (e) { console.error('getUsers error:', e); return null; }
+    const res = await fetch(`${url}?t=${Date.now()}`, {
+      headers: { 'Cache-Control': 'no-cache, no-store' }
+    });
+    if (res.status === 404) return null;        // no users file yet
+    if (!res.ok) { console.error(`getUsers status ${res.status}`); return null; }
+    return await res.json();
+  } catch (e) {
+    console.error('getUsers error:', e);
+    return null;
+  }
 }
 
 async function saveUsers(users) {
-  const { blobs } = await list({ prefix: BLOB_PREFIX });
-  if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
-  await put(BLOB_PREFIX, JSON.stringify(users), {
-    addRandomSuffix: false,
+  await put(BLOB_PATH, JSON.stringify(users), {
     access: 'public',
-    contentType: 'application/json'
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: 'application/json',
+    cacheControlMaxAge: 0
   });
 }
 
@@ -66,35 +73,46 @@ function makeDefaultAdmin() {
   return { id: 'admin', username: 'admin', name: 'Administrator', role: 'admin', passwordHash: hashPw('admin123') };
 }
 
+// ── Handler ──────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' });
 
   const body = req.body || {};
   const { action } = body;
 
-  if (action === 'login') {
-    const { username, password } = body;
-    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
-    let users = await getUsers();
-    if (!users) { const admin = makeDefaultAdmin(); await saveUsers([admin]); users = [admin]; }
-    const user = users.find(u => u.username === username.trim().toLowerCase());
-    if (!user || user.passwordHash !== hashPw(password)) return res.status(401).json({ error: 'Invalid username or password' });
-    const payload = { id: user.id, username: user.username, name: user.name, role: user.role, exp: Date.now() + TOKEN_TTL };
-    return res.json({ token: signToken(payload), user: { username: user.username, name: user.name, role: user.role } });
-  }
-
+  // verify — pure HMAC, touches no storage at all
   if (action === 'verify') {
     const payload = verifyToken(body.token);
     if (!payload) return res.status(401).json({ error: 'Invalid or expired session' });
     return res.json({ user: { username: payload.username, name: payload.name, role: payload.role } });
   }
 
-  const rawToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const caller   = verifyToken(rawToken);
+  if (action === 'login') {
+    const { username, password } = body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    let users = await getUsers();
+    if (!users || !users.length) {
+      const admin = makeDefaultAdmin();
+      await saveUsers([admin]);
+      users = [admin];
+    }
+    const user = users.find(u => u.username === username.trim().toLowerCase());
+    if (!user || user.passwordHash !== hashPw(password)) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+    const payload = { id: user.id, username: user.username, name: user.name, role: user.role, exp: Date.now() + TOKEN_TTL };
+    return res.json({
+      token: signToken(payload),
+      user: { username: user.username, name: user.name, role: user.role }
+    });
+  }
+
+  // ── Everything below is admin-only ──
+  const caller = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
   if (!caller)                 return res.status(401).json({ error: 'Unauthorized' });
   if (caller.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
 
@@ -105,18 +123,30 @@ module.exports = async function handler(req, res) {
 
   if (action === 'save-user') {
     const { userId, userUsername, userName, userRole, userPassword } = body;
-    if (!userUsername || !userRole || !userName) return res.status(400).json({ error: 'Username, full name, and role are required' });
+    if (!userUsername || !userRole || !userName) {
+      return res.status(400).json({ error: 'Username, full name, and role are required' });
+    }
+    const uname = userUsername.trim().toLowerCase();
     let users = await getUsers() || [makeDefaultAdmin()];
     const existing = users.find(u => u.id === userId);
     if (existing) {
-      existing.username = userUsername.trim().toLowerCase();
-      existing.name = userName.trim();
-      existing.role = userRole;
+      if (users.some(u => u.username === uname && u.id !== userId)) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+      existing.username = uname;
+      existing.name     = userName.trim();
+      existing.role     = userRole;
       if (userPassword) existing.passwordHash = hashPw(userPassword);
     } else {
       if (!userPassword) return res.status(400).json({ error: 'Password required for new users' });
-      if (users.some(u => u.username === userUsername.trim().toLowerCase())) return res.status(400).json({ error: 'Username already taken' });
-      users.push({ id: crypto.randomBytes(8).toString('hex'), username: userUsername.trim().toLowerCase(), name: userName.trim(), role: userRole, passwordHash: hashPw(userPassword) });
+      if (users.some(u => u.username === uname)) {
+        return res.status(400).json({ error: 'Username already taken' });
+      }
+      users.push({
+        id: crypto.randomBytes(8).toString('hex'),
+        username: uname, name: userName.trim(), role: userRole,
+        passwordHash: hashPw(userPassword)
+      });
     }
     await saveUsers(users);
     return res.json({ ok: true });
@@ -126,6 +156,9 @@ module.exports = async function handler(req, res) {
     const { userId } = body;
     if (userId === caller.id) return res.status(400).json({ error: 'You cannot delete your own account' });
     const users = (await getUsers() || []).filter(u => u.id !== userId);
+    if (!users.some(u => u.role === 'admin')) {
+      return res.status(400).json({ error: 'Cannot delete the last admin account' });
+    }
     await saveUsers(users);
     return res.json({ ok: true });
   }
