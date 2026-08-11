@@ -1,29 +1,58 @@
 const crypto = require('crypto');
-const { put, del } = require('@vercel/blob');   // list/head no longer needed
+const { put } = require('@vercel/blob');   // put only — no list/del/head/copy
 
 const SECRET     = process.env.JWT_SECRET || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
 const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays', 'fuel_soa', 'rfid_soa'];
 
-// ── Derive the public blob store base URL from the token ──────────────────────
-// Token format: vercel_blob_rw_{storeId}_{secret}
-// This lets us build the deterministic public URL without any list()/head() calls.
-function blobBaseUrl() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN || '';
-  const parts = token.split('_');
-  // parts: ['vercel','blob','rw','{storeId}','{secret}']
-  if (parts.length >= 4) {
-    return `https://${parts[3]}.public.blob.vercel-storage.com`;
-  }
-  return null;
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+//  BLOB ACCESS — zero advanced operations
+//
+//  Reads : plain HTTPS GET of the public blob URL (not a billed blob op).
+//  Writes: put() with allowOverwrite, which replaces the object in place.
+//          This is a *simple* operation. The old code called del() first,
+//          which was an *advanced* operation on every single save.
+//
+//  The public URL is derived from the token, so we never need list() or head()
+//  to discover it. Token format: vercel_blob_rw_{storeId}_{secret}
+// ─────────────────────────────────────────────────────────────────────────────
 function colUrl(col) {
-  const base = blobBaseUrl();
-  if (!base) return null;
-  return `${base}/sii/${col}.json`;
+  const parts = (process.env.BLOB_READ_WRITE_TOKEN || '').split('_');
+  if (parts.length < 4) return null;
+  return `https://${parts[3]}.public.blob.vercel-storage.com/sii/${col}.json`;
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
+async function readCol(col) {
+  const url = colUrl(col);
+  if (!url) {
+    console.error('BLOB_READ_WRITE_TOKEN missing or malformed');
+    return [];
+  }
+  try {
+    // Cache-bust so edits by one user are seen immediately by others
+    const res = await fetch(`${url}?t=${Date.now()}`, {
+      headers: { 'Cache-Control': 'no-cache, no-store' }
+    });
+    if (res.ok)             return await res.json();
+    if (res.status === 404) return [];          // collection not created yet
+    console.error(`readCol(${col}) unexpected status ${res.status}`);
+    return [];
+  } catch (e) {
+    console.error(`readCol(${col}) error:`, e);
+    return [];
+  }
+}
+
+async function writeCol(col, data) {
+  await put(`sii/${col}.json`, JSON.stringify(data), {
+    access: 'public',
+    addRandomSuffix: false,
+    allowOverwrite: true,       // replaces in place — no del() needed
+    contentType: 'application/json',
+    cacheControlMaxAge: 0       // don't let the CDN serve stale data
+  });
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
   const dot = token.lastIndexOf('.');
@@ -38,112 +67,69 @@ function verifyToken(token) {
   } catch { return null; }
 }
 
-// ── Read: direct public fetch — 0 advanced operations ────────────────────────
-async function readCol(col) {
-  try {
-    const url = colUrl(col);
-    if (url) {
-      // Public blob — no auth needed, no list()/head() needed
-      const res = await fetch(`${url}?t=${Date.now()}`, {
-        headers: { 'Cache-Control': 'no-cache, no-store' }
-      });
-      if (res.ok)             return await res.json();
-      if (res.status === 404) return [];   // collection doesn't exist yet — fine
-      // unexpected status: fall through to legacy path
-    }
-    // Fallback (only if token parsing fails / local dev without env var)
-    const { list } = require('@vercel/blob');
-    const { blobs } = await list({ prefix: `sii/${col}.json` });
-    if (!blobs.length) return [];
-    const sorted = blobs.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    const r = await fetch(sorted[0].url);
-    return r.ok ? await r.json() : [];
-  } catch (e) {
-    console.error(`readCol(${col}) error:`, e);
-    return [];
-  }
-}
-
-// ── Write: delete by known URL + put — 1 advanced op (del) + 1 simple op (put)
-async function writeCol(col, data) {
-  const url = colUrl(col);
-  if (url) {
-    // Delete the known URL directly — no list() needed
-    try { await del(url); } catch { /* 404 is fine on first write */ }
-  } else {
-    // Fallback
-    const { list } = require('@vercel/blob');
-    const { blobs } = await list({ prefix: `sii/${col}.json` });
-    if (blobs.length) await Promise.all(blobs.map(b => del(b.url)));
-  }
-  await put(`sii/${col}.json`, JSON.stringify(data), {
-    addRandomSuffix: false,
-    access: 'public',
-    contentType: 'application/json'
-  });
-}
-
-// ── Handler ───────────────────────────────────────────────────────────────────
+// ── Handler ──────────────────────────────────────────────────────────────────
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const rawToken = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  const caller   = verifyToken(rawToken);
+  const caller = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
   if (!caller) return res.status(401).json({ error: 'Unauthorized — please log in again' });
 
   const col = req.query.col;
   if (!VALID_COLS.includes(col)) return res.status(400).json({ error: `Invalid collection: ${col}` });
 
   if (req.method === 'GET') {
-    const data = await readCol(col);
-    return res.json({ data });
+    return res.json({ data: await readCol(col) });
   }
 
-  if (req.method === 'POST') {
-    if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
-    const { op, item, items, id } = req.body || {};
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
 
-    // Bulk insert/update — one blob write for the whole batch
-    if (op === 'saveMany') {
-      if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
-      let data = await readCol(col);
-      const byId = new Map(data.map(x => [x.id, x]));
-      for (const it of items) {
-        if (!it || !it.id) continue;
-        byId.set(it.id, it);
-      }
-      data = [...byId.values()];
-      await writeCol(col, data);
-      return res.json({ ok: true, data, saved: items.length });
-    }
+  const { op, item, items, id, ids } = req.body || {};
 
-    // Wipe an entire collection — one blob write
-    if (op === 'clear') {
-      await writeCol(col, []);
-      return res.json({ ok: true, data: [] });
-    }
-
-    if (op === 'save') {
+  // Every branch below performs exactly one write (1 simple op, 0 advanced).
+  switch (op) {
+    case 'save': {
       if (!item || !item.id) return res.status(400).json({ error: 'Item with id required' });
-      let data = await readCol(col);
-      const idx = data.findIndex(x => x.id === item.id);
+      const data = await readCol(col);
+      const idx  = data.findIndex(x => x.id === item.id);
       if (idx > -1) data[idx] = item; else data.push(item);
       await writeCol(col, data);
       return res.json({ ok: true, data });
     }
 
-    if (op === 'delete') {
+    case 'saveMany': {
+      if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+      const byId = new Map((await readCol(col)).map(x => [x.id, x]));
+      for (const it of items) if (it && it.id) byId.set(it.id, it);
+      const data = [...byId.values()];
+      await writeCol(col, data);
+      return res.json({ ok: true, data, saved: items.length });
+    }
+
+    case 'delete': {
       if (!id) return res.status(400).json({ error: 'id required' });
-      let data = (await readCol(col)).filter(x => x.id !== id);
+      const data = (await readCol(col)).filter(x => x.id !== id);
       await writeCol(col, data);
       return res.json({ ok: true, data });
     }
 
-    return res.status(400).json({ error: `Unknown op: ${op}` });
-  }
+    case 'deleteMany': {
+      if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+      const drop = new Set(ids);
+      const data = (await readCol(col)).filter(x => !drop.has(x.id));
+      await writeCol(col, data);
+      return res.json({ ok: true, data });
+    }
 
-  return res.status(405).json({ error: 'Method not allowed' });
+    case 'clear': {
+      await writeCol(col, []);
+      return res.json({ ok: true, data: [] });
+    }
+
+    default:
+      return res.status(400).json({ error: `Unknown op: ${op}` });
+  }
 };
