@@ -113,6 +113,39 @@ module.exports = async function handler(req, res) {
   if (!caller) return res.status(401).json({ error: 'Unauthorized — please log in again' });
   if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
 
+  // ── Setup diagnostic: reports exactly which step is broken ──
+  if (req.body && req.body.diagnose) {
+    const out = {
+      hooks: {
+        delivery: Boolean(HOOKS.delivery),
+        drivers:  Boolean(HOOKS.drivers),
+        sm:       Boolean(HOOKS.sm)
+      },
+      appId:     Boolean(process.env.LARK_APP_ID),
+      appSecret: Boolean(process.env.LARK_APP_SECRET),
+      tokenOk: false, tokenError: null,
+      uploadOk: false, uploadError: null
+    };
+    try {
+      await tenantToken();
+      out.tokenOk = true;
+    } catch (e) {
+      out.tokenError = e.message;
+      return res.json(out);
+    }
+    try {
+      // 32x32 solid PNG — verified valid; avoids any minimum-dimension check
+      const tiny = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAALElEQVR42u3NQQEAQAQAMC6RBPoX0eNK8NsKLKcrLr04JhAIBAKBQCAQCLZ8nY4BkwF7Q1gAAAAASUVORK5CYII=',
+        'base64');
+      const key = await uploadImage(tiny);
+      out.uploadOk = Boolean(key);
+    } catch (e) {
+      out.uploadError = e.message;
+    }
+    return res.json(out);
+  }
+
   const { targets, messages, png } = req.body || {};
 
   if (!Array.isArray(targets) || !targets.length) {
