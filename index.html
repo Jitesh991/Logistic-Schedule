@@ -3302,6 +3302,32 @@ async function larkPreview() {
   return { built, picked, detail };
 }
 
+// Map Lark's error codes to the actual fix, instead of guessing
+function larkFixHint(err) {
+  const s = String(err);
+  if (/234007/.test(s) || /bot feature/i.test(s)) {
+    return `The app is missing the <strong>Bot</strong> capability — image upload needs it even
+            for webhook-only sending. In the Lark developer console open your app →
+            <strong>Features → Add Features → Bot</strong>, add it, then publish a new version
+            under <strong>Version Management &amp; Release</strong>.`;
+  }
+  if (/99991663|99991664|invalid.*app|app_id|app_secret/i.test(s)) {
+    return `Lark rejected the app credentials. Re-check <strong>LARK_APP_ID</strong> and
+            <strong>LARK_APP_SECRET</strong> in Vercel against Credentials &amp; Basic Info,
+            and redeploy after changing them.`;
+  }
+  if (/permission|scope|access denied|forbidden/i.test(s)) {
+    return `The <strong>im:resource</strong> scope ("Read and upload images or other files")
+            is not granted, or the version granting it has not been approved yet.`;
+  }
+  if (/review|approval|pending|not.*publish/i.test(s)) {
+    return `The app version is still awaiting administrator approval. Uploads start working
+            once the version shows as released.`;
+  }
+  return `The app authenticates but the upload was rejected. The code in the message above is
+          Lark's own error code — search it in the Lark developer documentation for the exact cause.`;
+}
+
 async function checkLarkSetup() {
   const box = document.getElementById('lark-result');
   box.innerHTML = '<div style="font-size:12px;color:var(--muted)">Checking…</div>';
@@ -3329,9 +3355,7 @@ async function checkLarkSetup() {
 
     if (!j.uploadOk && j.tokenOk) {
       html += `<div style="margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted);line-height:1.6">
-        The app authenticates but cannot upload. Usually this means the
-        <strong>im:resource</strong> scope is missing, or the app version is still
-        awaiting admin approval in the Lark developer console.</div>`;
+        ${larkFixHint(j.uploadError || '')}</div>`;
     }
     html += '</div>';
     box.innerHTML = html;
@@ -3374,8 +3398,9 @@ async function sendToLark() {
       document.getElementById('lark-result').innerHTML =
         `<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.6">
            <strong style="color:var(--red)">Text sent, image did not attach</strong><br>
-           <span style="color:var(--text)">${esc(json.imageError || 'unknown error')}</span><br>
-           <span style="color:var(--muted)">Click “Check Lark setup” below to pinpoint the cause.</span>
+           <span style="color:var(--text)">${esc(json.imageError || 'unknown error')}</span>
+           <div style="margin-top:7px;padding-top:7px;border-top:1px dashed #fecaca;font-size:11px;color:var(--muted);line-height:1.6">
+             ${larkFixHint(json.imageError || '')}</div>
          </div>`;
       return;   // leave the modal open so the message is visible
     }
