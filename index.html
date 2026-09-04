@@ -363,7 +363,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <span class="uname" id="user-name">—</span>
       <span class="role-badge" id="role-badge">—</span>
     </div>
-    <button class="btn btn-o btn-sm role-edit" onclick="exportCSV()">⬇ Export CSV</button>
+    <button class="btn btn-o btn-sm role-edit" onclick="openLarkSend()">📤 Send to Lark</button>
     <button class="btn btn-o btn-sm" id="btn-png" onclick="exportPNG()">📷 Save PNG</button>
     <button class="btn btn-o btn-sm" id="btn-logout" onclick="logout()" style="display:none">Sign Out</button>
   </div>
@@ -680,6 +680,52 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 </div>
 
 </main>
+</div>
+
+<!-- ════ MODAL: Send to Lark ════ -->
+<div class="modal-bg" id="m-lark">
+  <div class="modal" style="width:560px">
+    <div class="modal-hdr">
+      <h3>📤 Send schedule to Lark</h3>
+      <button class="modal-close" onclick="closeModal('m-lark')">✕</button>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
+      Week on screen: <strong style="color:var(--text)" id="lark-week">—</strong>
+      · the schedule image is attached to each message
+    </div>
+
+    <div class="section-label">Send to</div>
+    <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
+      <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
+        <input type="checkbox" class="lark-chat-cb" value="delivery" checked onchange="larkPreview()">
+        <span><strong>Delivery team</strong><br><span style="font-size:11px;color:var(--muted)">Full week overview</span></span>
+      </label>
+      <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
+        <input type="checkbox" class="lark-chat-cb" value="drivers" checked onchange="larkPreview()">
+        <span><strong>Drivers &amp; Helpers</strong><br><span style="font-size:11px;color:var(--muted)">Assignments, times and permits</span></span>
+      </label>
+      <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
+        <input type="checkbox" class="lark-chat-cb" value="sm" checked onchange="larkPreview()">
+        <span><strong>SM promodizer</strong><br><span style="font-size:11px;color:var(--muted)">SM branches only</span></span>
+      </label>
+    </div>
+
+    <div class="section-label">Detail level</div>
+    <div class="day-checks" style="margin-bottom:16px">
+      <label class="checked"><input type="radio" name="lark-detail" value="full" checked onchange="larkPreview()"> Every stop</label>
+      <label><input type="radio" name="lark-detail" value="summary" onchange="larkPreview()"> Daily totals</label>
+    </div>
+
+    <div class="section-label">Preview</div>
+    <div id="lark-result" style="max-height:280px;overflow-y:auto"></div>
+
+    <div class="modal-foot">
+      <button class="btn btn-o btn-sm" onclick="larkPreview()">↻ Refresh preview</button>
+      <button class="btn btn-o btn-sm" onclick="closeModal('m-lark')">Cancel</button>
+      <button class="btn btn-p btn-sm" id="btn-lark-send" onclick="sendToLark()">📤 Send to Lark</button>
+    </div>
+  </div>
 </div>
 
 <!-- ════ MODAL: Holiday ════ -->
@@ -3055,15 +3101,255 @@ async function exportCSV() {
 }
 
 // ══════════════════════════════════════════════════
+//  SEND TO LARK
+// ══════════════════════════════════════════════════
+const LARK_CHATS = [
+  { key:'delivery', label:'Delivery team',     desc:'Full week overview' },
+  { key:'drivers',  label:'Drivers & Helpers', desc:'Assignments and permits' },
+  { key:'sm',       label:'SM promodizer',     desc:'SM branches only' }
+];
+
+async function openLarkSend() {
+  if (!document.getElementById('page-cal').classList.contains('active')) {
+    toast('Open the Schedule Grid first — the image comes from the week on screen','err');
+    return;
+  }
+  const days = getWeekDays();
+  document.getElementById('lark-week').textContent =
+    `${fmtMD(days[0])} – ${fmtMD(days[6])} ${days[6].getFullYear()}`;
+  document.getElementById('lark-result').innerHTML =
+    '<div style="font-size:12px;color:var(--muted)">Building preview…</div>';
+  openModal('m-lark');
+  await larkPreview();
+}
+
+// Collect the on-screen week into a shape the message builders can use
+async function gatherWeek() {
+  const days = getWeekDays();
+  const ws = dStr(days[0]), we = dStr(days[6]);
+  const [schedules, customers, drivers, holidays, trucks] = await Promise.all([
+    apiGet('schedules'), apiGet('customers'), apiGet('drivers'), apiGet('holidays'), apiGet('trucks')
+  ]);
+  const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+  const tMap = Object.fromEntries(trucks.map(t => [t.plate, t]));
+  const hMap = Object.fromEntries(holidays.map(h => [h.date, h.name]));
+  const scheds = schedules.filter(s => s.date >= ws && s.date <= we)
+                          .sort((a,b) => a.date.localeCompare(b.date) || a.plate.localeCompare(b.plate));
+  return { days, scheds, cMap, tMap, hMap };
+}
+
+const DAY_LBL = d => `${d.toLocaleDateString('en-PH',{weekday:'short'})} ${d.getDate()}`;
+
+// Only flag coding when a truck is actually scheduled on its coding day —
+// warning about days it wasn't going out anyway just trains people to ignore it.
+function codingConflicts(ctx) {
+  const { days, scheds, tMap } = ctx;
+  const out = [];
+  for (const d of days) {
+    const ds = dStr(d);
+    const dayName = d.toLocaleDateString('en-PH',{weekday:'long'});
+    for (const s of scheds.filter(x => x.date === ds)) {
+      if ((tMap[s.plate]?.codingDays||[]).includes(dayName)) {
+        out.push(`${s.plate} is scheduled on its coding day (${dayName} ${d.getDate()})`);
+      }
+    }
+  }
+  return [...new Set(out)];
+}
+
+function larkHeader(days) {
+  const a = days[0].toLocaleDateString('en-PH',{month:'short',day:'numeric'});
+  const b = days[6].toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+  return `${a} – ${b}`;
+}
+
+// ── Delivery team ──
+function buildDeliveryMsg(ctx, detail) {
+  const { days, scheds, cMap, tMap, hMap } = ctx;
+  const lines = ['🚚 WEEKLY DELIVERY SCHEDULE', larkHeader(days), ''];
+
+  const trucksOut = new Set(scheds.map(s => s.plate));
+  const totalPO   = scheds.reduce((n,s) => n + (s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),0), 0);
+  const custSet   = new Set(scheds.flatMap(s => (s.deliveries||[]).map(d=>d.cid).filter(Boolean)));
+  lines.push(`${trucksOut.size} trucks · ${scheds.length} routes · ${totalPO} POs · ${custSet.size} customers`, '');
+
+  for (const d of days) {
+    const ds = dStr(d);
+    if (isSun(d) || isSat(d)) continue;
+    const dayScheds = scheds.filter(s => s.date === ds);
+    const hol = hMap[ds];
+    if (!dayScheds.length && !hol) continue;
+
+    lines.push(`▸ ${DAY_LBL(d)}`);
+    if (hol) lines.push(`   🎌 ${hol} — no dispatch`);
+
+    if (detail === 'full') {
+      for (const s of dayScheds) {
+        const stops = (s.deliveries||[]).filter(dv=>dv.cid).map(dv => {
+          const nm = cMap[dv.cid]?.name || '?';
+          return `${nm} (${parseInt(dv.po)||0})${dv.pullout ? ' ↩' : ''}`;
+        }).join(', ');
+        lines.push(`   ${s.plate} — ${stops || 'no stops'}`);
+      }
+    } else if (dayScheds.length) {
+      const po = dayScheds.reduce((n,s)=>n+(s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),0),0);
+      lines.push(`   ${dayScheds.length} truck${dayScheds.length!==1?'s':''} · ${po} POs`);
+    }
+    lines.push('');
+  }
+
+  const coding = codingConflicts(ctx);
+  if (coding.length) lines.push(`⚠️ ${coding.join(' · ')}`, '');
+
+  lines.push(`Posted by ${currentUser?.name || currentUser?.username || 'SII'} · ${new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}`);
+  return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+// ── Drivers & Helpers ──
+function buildDriversMsg(ctx, detail) {
+  const { days, scheds, cMap, tMap, hMap } = ctx;
+  const lines = ['👷 DRIVER ASSIGNMENTS', larkHeader(days), ''];
+
+  for (const d of days) {
+    const ds = dStr(d);
+    if (isSun(d) || isSat(d)) continue;
+    const dayScheds = scheds.filter(s => s.date === ds);
+    const hol = hMap[ds];
+    if (!dayScheds.length && !hol) continue;
+
+    lines.push(`▸ ${DAY_LBL(d)}`);
+    if (hol) lines.push(`   🎌 ${hol} — no dispatch`);
+
+    for (const s of dayScheds) {
+      lines.push(`   🚛 ${s.plate} · ${s.driver || 'driver TBA'}`);
+      const helpers = (s.helpers||[]).filter(Boolean);
+      if (helpers.length) lines.push(`      Helpers: ${helpers.join(', ')}`);
+
+      if (detail === 'full') {
+        for (const dv of (s.deliveries||[]).filter(x=>x.cid)) {
+          const c = cMap[dv.cid];
+          const t = c?.time ? `${c.time} ` : '';
+          lines.push(`      ${t}${c?.name || '?'} (${parseInt(dv.po)||0} PO)${dv.pullout ? ' ↩ pullout' : ''}`);
+        }
+        const permits = [...new Set((s.deliveries||[]).flatMap(dv => cMap[dv.cid]?.permits || []))];
+        if (permits.length) lines.push(`      📋 Bring: ${permits.join(', ')}`);
+      } else {
+        const names = (s.deliveries||[]).filter(x=>x.cid).map(dv => cMap[dv.cid]?.name || '?');
+        if (names.length) lines.push(`      ${names.join(' → ')}`);
+      }
+      if (s.notes) lines.push(`      Note: ${s.notes}`);
+    }
+    lines.push('');
+  }
+
+  const coding = codingConflicts(ctx);
+  if (coding.length) lines.push(`⚠️ ${coding.join(' · ')}`, '');
+
+  lines.push('Please reply here to confirm you have seen this.');
+  return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+// ── SM promodizer ──
+function buildSmMsg(ctx, detail) {
+  const { days, scheds, cMap } = ctx;
+  const isSM = cid => /^\s*SM\b/i.test(cMap[cid]?.name || '');
+
+  const rows = [];
+  for (const s of scheds) {
+    for (const dv of (s.deliveries||[]).filter(x => x.cid && isSM(x.cid))) {
+      rows.push({ date:s.date, plate:s.plate, name:cMap[dv.cid].name,
+                  po:parseInt(dv.po)||0, pullout:!!dv.pullout, time:cMap[dv.cid]?.time });
+    }
+  }
+  if (!rows.length) return null;   // nothing to say — skip this chat
+
+  const lines = ['🏬 SM DELIVERY ADVICE', larkHeader(days), ''];
+  for (const r of rows) {
+    const d = new Date(r.date + 'T00:00:00');
+    const t = (detail === 'full' && r.time) ? ` · ${r.time}` : '';
+    lines.push(`▸ ${DAY_LBL(d)} — ${r.name}`);
+    lines.push(`   ${r.po} PO${r.po!==1?'s':''} · ${r.plate}${t}${r.pullout ? ' · includes pullout ↩' : ''}`);
+  }
+  const branches = new Set(rows.map(r=>r.name)).size;
+  const totalPO  = rows.reduce((a,r)=>a+r.po,0);
+  lines.push('', `Total: ${branches} branch${branches!==1?'es':''} · ${totalPO} POs`, '',
+             'Kindly arrange receiving personnel for these dates.');
+  return lines.join('\n').trim();
+}
+
+async function larkPreview() {
+  const detail = document.querySelector('input[name="lark-detail"]:checked')?.value || 'full';
+  const ctx    = await gatherWeek();
+  const built  = {
+    delivery: buildDeliveryMsg(ctx, detail),
+    drivers:  buildDriversMsg(ctx, detail),
+    sm:       buildSmMsg(ctx, detail)
+  };
+  const picked = [...document.querySelectorAll('.lark-chat-cb:checked')].map(cb => cb.value);
+  const out = picked.map(k => {
+    const chat = LARK_CHATS.find(c=>c.key===k);
+    const body = built[k];
+    return `<div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${esc(chat.label)}</div>
+      ${body
+        ? `<pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.6;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${esc(body)}</pre>`
+        : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">No SM deliveries this week — this chat will be skipped.</div>`}
+    </div>`;
+  }).join('');
+  document.getElementById('lark-result').innerHTML =
+    out || '<div style="font-size:12px;color:var(--muted)">Select at least one chat.</div>';
+  return { built, picked, detail };
+}
+
+async function sendToLark() {
+  const btn = document.getElementById('btn-lark-send');
+  const { built, picked } = await larkPreview();
+  if (!picked.length) { toast('Pick at least one chat','err'); return; }
+
+  const targets = picked.filter(k => built[k]);      // drop chats with nothing to say
+  if (!targets.length) { toast('Nothing to send for the selected chats','err'); return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Building image…';
+  try {
+    const png = await exportPNG({ returnDataUrl: true });
+
+    btn.textContent = '⏳ Sending…';
+    const messages = {};
+    targets.forEach(k => { messages[k] = built[k]; });
+
+    const res  = await fetch('/api/lark', {
+      method:'POST', headers: authHdr(),
+      body: JSON.stringify({ targets, messages, png })
+    });
+    const json = await res.json();
+
+    if (!res.ok) { toast(json.error || 'Send failed','err'); return; }
+
+    let msg = `Sent to ${json.sent.join(', ')}`;
+    if (!json.imageSent) msg += ' — text only, image upload failed';
+    if (json.failed?.length) msg += ` · Failed: ${json.failed.join('; ')}`;
+    toast(msg, json.failed?.length ? 'err' : 'ok');
+    if (!json.failed?.length) closeModal('m-lark');
+
+  } catch(e) {
+    console.error(e);
+    toast('Send failed — ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '📤 Send to Lark';
+  }
+}
+
+// ══════════════════════════════════════════════════
 //  PNG EXPORT  — pure Canvas 2D, no html2canvas
 // ══════════════════════════════════════════════════
-async function exportPNG() {
-  const calPage = document.getElementById('page-cal');
-  if (!calPage.classList.contains('active')) {
+// opts.returnDataUrl → resolve to a data URL instead of downloading
+async function exportPNG(opts = {}) {
+  const quiet = !!opts.returnDataUrl;
+  if (!quiet && !document.getElementById('page-cal').classList.contains('active')) {
     toast('Switch to Schedule Grid first, then save PNG','err'); return;
   }
   const btn = document.getElementById('btn-png');
-  btn.textContent = '⏳ Building…'; btn.disabled = true;
+  if (!quiet) { btn.textContent = '⏳ Building…'; btn.disabled = true; }
 
   try {
     const days = getWeekDays();
@@ -3282,6 +3568,8 @@ async function exportPNG() {
     ctx.save(); ctx.strokeStyle='#2B2B2B'; ctx.lineWidth=3;
     ctx.strokeRect(1.5,1.5,W-3,H-3); ctx.restore();
 
+    if (quiet) return cv.toDataURL('image/png');
+
     const fn = 'SII_Schedule_'+dStr(days[0])+'_to_'+dStr(days[6])+'.png';
     const a  = document.createElement('a');
     a.href   = cv.toDataURL('image/png');
@@ -3289,9 +3577,10 @@ async function exportPNG() {
     toast('PNG saved ✓','ok');
   } catch(e) {
     console.error(e);
+    if (quiet) throw e;
     toast('PNG export failed — '+e.message,'err');
   } finally {
-    btn.textContent = '📷 Save PNG'; btn.disabled = false;
+    if (!quiet) { btn.textContent = '📷 Save PNG'; btn.disabled = false; }
   }
 }
 
