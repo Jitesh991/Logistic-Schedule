@@ -146,7 +146,7 @@ module.exports = async function handler(req, res) {
     return res.json(out);
   }
 
-  const { targets, messages, png } = req.body || {};
+  const { targets, messages, png, imageTargets } = req.body || {};
 
   if (!Array.isArray(targets) || !targets.length) {
     return res.status(400).json({ error: 'Pick at least one chat' });
@@ -162,14 +162,18 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // Decode the PNG (data URL or bare base64). Optional — text still sends without it.
+  // Which chats get the image. Defaults to delivery only; the others are text-only.
+  const wantsImage = Array.isArray(imageTargets) ? imageTargets : ['delivery'];
+  const imageNeeded = targets.some(t => wantsImage.includes(t));
+
+  // Upload only if a selected chat actually wants it. Text still sends if this fails.
   let imageKey = null, imageError = null;
-  if (png) {
+  if (png && imageNeeded) {
     try {
       const b64 = String(png).replace(/^data:image\/png;base64,/, '');
       imageKey = await uploadImage(Buffer.from(b64, 'base64'));
     } catch (e) {
-      imageError = e.message;      // fall back to text-only rather than failing outright
+      imageError = e.message;
       console.error('Lark image upload:', e.message);
     }
   }
@@ -181,7 +185,7 @@ module.exports = async function handler(req, res) {
       if (text) {
         await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
       }
-      if (imageKey) {
+      if (imageKey && wantsImage.includes(t)) {
         await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
       }
       sent.push(LABELS[t] || t);
@@ -196,6 +200,7 @@ module.exports = async function handler(req, res) {
     sent,
     failed,
     imageSent: Boolean(imageKey),
+    imageNeeded,
     imageError
   });
 };
