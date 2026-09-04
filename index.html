@@ -721,7 +721,8 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div id="lark-result" style="max-height:280px;overflow-y:auto"></div>
 
     <div class="modal-foot">
-      <button class="btn btn-o btn-sm" onclick="larkPreview()">↻ Refresh preview</button>
+      <button class="btn btn-o btn-sm" style="margin-right:auto" onclick="checkLarkSetup()">🔍 Check Lark setup</button>
+      <button class="btn btn-o btn-sm" onclick="larkPreview()">↻ Preview</button>
       <button class="btn btn-o btn-sm" onclick="closeModal('m-lark')">Cancel</button>
       <button class="btn btn-p btn-sm" id="btn-lark-send" onclick="sendToLark()">📤 Send to Lark</button>
     </div>
@@ -3301,6 +3302,44 @@ async function larkPreview() {
   return { built, picked, detail };
 }
 
+async function checkLarkSetup() {
+  const box = document.getElementById('lark-result');
+  box.innerHTML = '<div style="font-size:12px;color:var(--muted)">Checking…</div>';
+  try {
+    const res  = await fetch('/api/lark', {
+      method:'POST', headers: authHdr(), body: JSON.stringify({ diagnose:true })
+    });
+    const j = await res.json();
+    if (!res.ok) { box.innerHTML = `<div style="font-size:12px;color:var(--red)">${esc(j.error||'Check failed')}</div>`; return; }
+
+    const row = (ok, label, detail) => `
+      <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:12px">
+        <span style="flex-shrink:0">${ok ? '✅' : '❌'}</span>
+        <span><strong>${esc(label)}</strong>${detail ? `<br><span style="color:var(--muted)">${esc(detail)}</span>` : ''}</span>
+      </div>`;
+
+    let html = '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:11px 13px">';
+    html += row(j.hooks.delivery, 'LARK_HOOK_DELIVERY', j.hooks.delivery ? '' : 'not set in Vercel');
+    html += row(j.hooks.drivers,  'LARK_HOOK_DRIVERS',  j.hooks.drivers  ? '' : 'not set in Vercel');
+    html += row(j.hooks.sm,       'LARK_HOOK_SM',       j.hooks.sm       ? '' : 'not set in Vercel');
+    html += row(j.appId,          'LARK_APP_ID',        j.appId          ? '' : 'not set — required for the image');
+    html += row(j.appSecret,      'LARK_APP_SECRET',    j.appSecret      ? '' : 'not set — required for the image');
+    html += row(j.tokenOk,        'Lark app token',     j.tokenError || (j.tokenOk ? 'authenticated' : ''));
+    html += row(j.uploadOk,       'Image upload',       j.uploadError || (j.uploadOk ? 'test image uploaded' : ''));
+
+    if (!j.uploadOk && j.tokenOk) {
+      html += `<div style="margin-top:9px;padding-top:9px;border-top:1px dashed var(--border);font-size:11px;color:var(--muted);line-height:1.6">
+        The app authenticates but cannot upload. Usually this means the
+        <strong>im:resource</strong> scope is missing, or the app version is still
+        awaiting admin approval in the Lark developer console.</div>`;
+    }
+    html += '</div>';
+    box.innerHTML = html;
+  } catch(e) {
+    box.innerHTML = `<div style="font-size:12px;color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
 async function sendToLark() {
   const btn = document.getElementById('btn-lark-send');
   const { built, picked } = await larkPreview();
@@ -3326,9 +3365,20 @@ async function sendToLark() {
     if (!res.ok) { toast(json.error || 'Send failed','err'); return; }
 
     let msg = `Sent to ${json.sent.join(', ')}`;
-    if (!json.imageSent) msg += ' — text only, image upload failed';
+    if (!json.imageSent) msg += ' — text only, image failed';
     if (json.failed?.length) msg += ` · Failed: ${json.failed.join('; ')}`;
-    toast(msg, json.failed?.length ? 'err' : 'ok');
+    toast(msg, (json.failed?.length || !json.imageSent) ? 'err' : 'ok');
+
+    // Keep the image error on screen — a toast disappears before it's read
+    if (!json.imageSent) {
+      document.getElementById('lark-result').innerHTML =
+        `<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.6">
+           <strong style="color:var(--red)">Text sent, image did not attach</strong><br>
+           <span style="color:var(--text)">${esc(json.imageError || 'unknown error')}</span><br>
+           <span style="color:var(--muted)">Click “Check Lark setup” below to pinpoint the cause.</span>
+         </div>`;
+      return;   // leave the modal open so the message is visible
+    }
     if (!json.failed?.length) closeModal('m-lark');
 
   } catch(e) {
