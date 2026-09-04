@@ -3210,6 +3210,30 @@ function buildDeliveryMsg(ctx, detail) {
   return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
+// ── Delivery team caption (sits under the image, so it stays short) ──
+function buildDeliveryCaption(ctx) {
+  const { days, scheds, hMap } = ctx;
+  const trucksOut = new Set(scheds.map(s => s.plate));
+  const totalPO   = scheds.reduce((n,s) => n + (s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),0), 0);
+  const custSet   = new Set(scheds.flatMap(s => (s.deliveries||[]).map(d=>d.cid).filter(Boolean)));
+
+  const lines = [
+    `${larkHeader(days)} · ${trucksOut.size} trucks · ${scheds.length} routes · ${totalPO} POs · ${custSet.size} customers`,
+    ''
+  ];
+
+  // Keep only what's easy to miss at a glance on the image
+  const hols = days.filter(d => hMap[dStr(d)]).map(d => `${DAY_LBL(d)} ${hMap[dStr(d)]}`);
+  if (hols.length) lines.push(`🎌 ${hols.join(' · ')} — no dispatch`);
+  const coding = codingConflicts(ctx);
+  if (coding.length) lines.push(`⚠️ ${coding.join(' · ')}`);
+  if (hols.length || coding.length) lines.push('');
+
+  lines.push('Please see the updated schedule above.');
+  lines.push(`Posted by ${currentUser?.name || currentUser?.username || 'SII'} · ${new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}`);
+  return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
 // ── Drivers & Helpers ──
 function buildDriversMsg(ctx, detail) {
   const { days, scheds, cMap, tMap, hMap } = ctx;
@@ -3281,25 +3305,32 @@ function buildSmMsg(ctx, detail) {
 async function larkPreview() {
   const detail = document.querySelector('input[name="lark-detail"]:checked')?.value || 'full';
   const ctx    = await gatherWeek();
+  // Delivery reads the detail off the image, so it gets a caption instead.
+  // The full text is kept as a fallback in case the image fails to upload.
   const built  = {
-    delivery: buildDeliveryMsg(ctx, detail),
+    delivery: buildDeliveryCaption(ctx),
     drivers:  buildDriversMsg(ctx, detail),
     sm:       buildSmMsg(ctx, detail)
   };
+  const fallbacks = { delivery: buildDeliveryMsg(ctx, detail) };
   const picked = [...document.querySelectorAll('.lark-chat-cb:checked')].map(cb => cb.value);
   const out = picked.map(k => {
     const chat = LARK_CHATS.find(c=>c.key===k);
     const body = built[k];
+    const img  = LARK_IMAGE_TARGETS.includes(k);
     return `<div style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${esc(chat.label)}</div>
       ${body
-        ? `<pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.6;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${esc(body)}</pre>`
+        ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+             ${img ? `<div style="border:1px dashed var(--border);border-radius:6px;padding:14px;text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">🖼 schedule image</div>` : ''}
+             <pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.6">${esc(body)}</pre>
+           </div>`
         : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">No SM deliveries this week — this chat will be skipped.</div>`}
     </div>`;
   }).join('');
   document.getElementById('lark-result').innerHTML =
     out || '<div style="font-size:12px;color:var(--muted)">Select at least one chat.</div>';
-  return { built, picked, detail };
+  return { built, fallbacks, picked, detail };
 }
 
 // Map Lark's error codes to the actual fix, instead of guessing
@@ -3366,7 +3397,7 @@ async function checkLarkSetup() {
 
 async function sendToLark() {
   const btn = document.getElementById('btn-lark-send');
-  const { built, picked } = await larkPreview();
+  const { built, fallbacks, picked } = await larkPreview();
   if (!picked.length) { toast('Pick at least one chat','err'); return; }
 
   const targets = picked.filter(k => built[k]);      // drop chats with nothing to say
@@ -3388,7 +3419,12 @@ async function sendToLark() {
 
     const res  = await fetch('/api/lark', {
       method:'POST', headers: authHdr(),
-      body: JSON.stringify({ targets, messages, png, imageTargets: LARK_IMAGE_TARGETS })
+      body: JSON.stringify({
+        targets, messages, png,
+        imageTargets: LARK_IMAGE_TARGETS,
+        fallbackMessages: fallbacks,
+        titles: { delivery: 'Weekly delivery schedule' }
+      })
     });
     const json = await res.json();
 
