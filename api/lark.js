@@ -89,6 +89,19 @@ async function uploadImage(buffer) {
   return json.data.image_key;
 }
 
+// One bubble containing the image with the text underneath it.
+// Lark's "post" type takes an array of rows; each row is an array of tags.
+function buildPost(imageKey, text, title) {
+  const rows = [[{ tag: 'img', image_key: imageKey }]];
+  for (const line of String(text || '').split('\n')) {
+    // Empty text tags get dropped, so use a space to keep the blank line
+    rows.push([{ tag: 'text', text: line.length ? line : ' ' }]);
+  }
+  const body = { title: title || '', content: rows };
+  // Supply both locales so it renders regardless of the reader's language setting
+  return { msg_type: 'post', content: { post: { en_us: body, zh_cn: body } } };
+}
+
 async function postHook(url, payload) {
   const res  = await fetch(url, {
     method: 'POST',
@@ -178,15 +191,30 @@ module.exports = async function handler(req, res) {
     }
   }
 
+  const fallbacks = req.body.fallbackMessages || {};
+  const titles    = req.body.titles || {};
+
   const sent = [], failed = [];
   for (const t of targets) {
     try {
-      const text = messages[t];
-      if (text) {
+      const withImage = imageKey && wantsImage.includes(t);
+
+      // A chat expecting the image gets the short caption; if the upload failed,
+      // fall back to the detailed text so the message still says something useful.
+      let text = messages[t];
+      if (wantsImage.includes(t) && !imageKey && fallbacks[t]) text = fallbacks[t];
+
+      if (withImage) {
+        try {
+          await postHook(HOOKS[t], buildPost(imageKey, text, titles[t]));
+        } catch (e) {
+          // Some tenants restrict rich posts — degrade to two plain messages
+          console.error(`post failed for ${t}, falling back:`, e.message);
+          if (text) await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
+          await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
+        }
+      } else if (text) {
         await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
-      }
-      if (imageKey && wantsImage.includes(t)) {
-        await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
       }
       sent.push(LABELS[t] || t);
     } catch (e) {
