@@ -692,22 +692,23 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 
     <div style="font-size:12px;color:var(--muted);margin-bottom:14px">
       Week on screen: <strong style="color:var(--text)" id="lark-week">—</strong>
-      · the schedule image is attached to each message
     </div>
 
     <div class="section-label">Send to</div>
     <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px">
       <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
         <input type="checkbox" class="lark-chat-cb" value="delivery" checked onchange="larkPreview()">
-        <span><strong>Delivery team</strong><br><span style="font-size:11px;color:var(--muted)">Full week overview</span></span>
+        <span><strong>Delivery team</strong>
+          <span class="soa-rec-badge">🖼 + schedule image</span><br>
+          <span style="font-size:11px;color:var(--muted)">Full week overview</span></span>
       </label>
       <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
         <input type="checkbox" class="lark-chat-cb" value="drivers" checked onchange="larkPreview()">
-        <span><strong>Drivers &amp; Helpers</strong><br><span style="font-size:11px;color:var(--muted)">Assignments, times and permits</span></span>
+        <span><strong>Drivers &amp; Helpers</strong><br><span style="font-size:11px;color:var(--muted)">Assignments, times and permits · text only</span></span>
       </label>
       <label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
         <input type="checkbox" class="lark-chat-cb" value="sm" checked onchange="larkPreview()">
-        <span><strong>SM promodizer</strong><br><span style="font-size:11px;color:var(--muted)">SM branches only</span></span>
+        <span><strong>SM promodizer</strong><br><span style="font-size:11px;color:var(--muted)">SM branches only · text only</span></span>
       </label>
     </div>
 
@@ -3110,6 +3111,9 @@ const LARK_CHATS = [
   { key:'sm',       label:'SM promodizer',     desc:'SM branches only' }
 ];
 
+// Only these chats receive the schedule PNG. The rest get text only.
+const LARK_IMAGE_TARGETS = ['delivery'];
+
 async function openLarkSend() {
   if (!document.getElementById('page-cal').classList.contains('active')) {
     toast('Open the Schedule Grid first — the image comes from the week on screen','err');
@@ -3271,10 +3275,6 @@ function buildSmMsg(ctx, detail) {
     lines.push(`▸ ${DAY_LBL(d)} — ${r.name}`);
     lines.push(`   ${r.po} PO${r.po!==1?'s':''} · ${r.plate}${t}${r.pullout ? ' · includes pullout ↩' : ''}`);
   }
-  const branches = new Set(rows.map(r=>r.name)).size;
-  const totalPO  = rows.reduce((a,r)=>a+r.po,0);
-  lines.push('', `Total: ${branches} branch${branches!==1?'es':''} · ${totalPO} POs`, '',
-             'Kindly arrange receiving personnel for these dates.');
   return lines.join('\n').trim();
 }
 
@@ -3372,9 +3372,15 @@ async function sendToLark() {
   const targets = picked.filter(k => built[k]);      // drop chats with nothing to say
   if (!targets.length) { toast('Nothing to send for the selected chats','err'); return; }
 
-  btn.disabled = true; btn.textContent = '⏳ Building image…';
+  // Only build the PNG if a chat that wants it is actually selected
+  const needsPng = targets.some(k => LARK_IMAGE_TARGETS.includes(k));
+  btn.disabled = true;
   try {
-    const png = await exportPNG({ returnDataUrl: true });
+    let png = null;
+    if (needsPng) {
+      btn.textContent = '⏳ Building image…';
+      png = await exportPNG({ returnDataUrl: true });
+    }
 
     btn.textContent = '⏳ Sending…';
     const messages = {};
@@ -3382,19 +3388,22 @@ async function sendToLark() {
 
     const res  = await fetch('/api/lark', {
       method:'POST', headers: authHdr(),
-      body: JSON.stringify({ targets, messages, png })
+      body: JSON.stringify({ targets, messages, png, imageTargets: LARK_IMAGE_TARGETS })
     });
     const json = await res.json();
 
     if (!res.ok) { toast(json.error || 'Send failed','err'); return; }
 
+    // An absent image is only a problem if a selected chat wanted one
+    const imageMissing = json.imageNeeded && !json.imageSent;
+
     let msg = `Sent to ${json.sent.join(', ')}`;
-    if (!json.imageSent) msg += ' — text only, image failed';
+    if (imageMissing) msg += ' — text only, image failed';
     if (json.failed?.length) msg += ` · Failed: ${json.failed.join('; ')}`;
-    toast(msg, (json.failed?.length || !json.imageSent) ? 'err' : 'ok');
+    toast(msg, (json.failed?.length || imageMissing) ? 'err' : 'ok');
 
     // Keep the image error on screen — a toast disappears before it's read
-    if (!json.imageSent) {
+    if (imageMissing) {
       document.getElementById('lark-result').innerHTML =
         `<div style="background:var(--red-lt);border:1px solid #fecaca;border-radius:8px;padding:11px 13px;font-size:12px;line-height:1.6">
            <strong style="color:var(--red)">Text sent, image did not attach</strong><br>
