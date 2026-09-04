@@ -712,6 +712,17 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       </label>
     </div>
 
+    <div id="lark-days-wrap" style="display:none">
+      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Days — Drivers &amp; Helpers only</span>
+        <span style="text-transform:none;letter-spacing:0">
+          <button class="btn btn-o btn-xs" onclick="larkSetDays(true)">All</button>
+          <button class="btn btn-o btn-xs" onclick="larkSetDays(false)">None</button>
+        </span>
+      </div>
+      <div class="day-checks" id="lark-days" style="margin-bottom:16px"></div>
+    </div>
+
     <div class="section-label">Detail level</div>
     <div class="day-checks" style="margin-bottom:16px">
       <label class="checked"><input type="radio" name="lark-detail" value="full" checked onchange="larkPreview()"> Every stop</label>
@@ -3124,6 +3135,7 @@ async function openLarkSend() {
     `${fmtMD(days[0])} – ${fmtMD(days[6])} ${days[6].getFullYear()}`;
   document.getElementById('lark-result').innerHTML =
     '<div style="font-size:12px;color:var(--muted)">Building preview…</div>';
+  document.getElementById('lark-days').innerHTML = '';   // rebuild chips for this week
   openModal('m-lark');
   await larkPreview();
 }
@@ -3147,11 +3159,12 @@ const DAY_LBL = d => `${d.toLocaleDateString('en-PH',{weekday:'short'})} ${d.get
 
 // Only flag coding when a truck is actually scheduled on its coding day —
 // warning about days it wasn't going out anyway just trains people to ignore it.
-function codingConflicts(ctx) {
+function codingConflicts(ctx, dates) {
   const { days, scheds, tMap } = ctx;
   const out = [];
   for (const d of days) {
     const ds = dStr(d);
+    if (dates && !dates.has(ds)) continue;
     const dayName = d.toLocaleDateString('en-PH',{weekday:'long'});
     for (const s of scheds.filter(x => x.date === ds)) {
       if ((tMap[s.plate]?.codingDays||[]).includes(dayName)) {
@@ -3235,11 +3248,21 @@ function buildDeliveryCaption(ctx) {
 }
 
 // ── Drivers & Helpers ──
-function buildDriversMsg(ctx, detail) {
+// dates: optional Set of 'YYYY-MM-DD' to limit which days are included
+function buildDriversMsg(ctx, detail, dates) {
   const { days, scheds, cMap, tMap, hMap } = ctx;
-  const lines = ['👷 DRIVER ASSIGNMENTS', larkHeader(days), ''];
+  const picked = days.filter(d => !dates || dates.has(dStr(d)));
+  if (!picked.length) return null;
 
-  for (const d of days) {
+  // Header names the actual days when it isn't the whole week
+  const full = !dates || picked.length === days.length;
+  const hdr  = full
+    ? larkHeader(days)
+    : picked.map(d => d.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'})).join(' · ');
+
+  const lines = ['👷 DRIVER ASSIGNMENTS', hdr, ''];
+
+  for (const d of picked) {
     const ds = dStr(d);
     if (isSun(d) || isSat(d)) continue;
     const dayScheds = scheds.filter(s => s.date === ds);
@@ -3271,7 +3294,10 @@ function buildDriversMsg(ctx, detail) {
     lines.push('');
   }
 
-  const coding = codingConflicts(ctx);
+  // Nothing but the header means no assignments on the chosen days
+  if (lines.length <= 3) return null;
+
+  const coding = codingConflicts(ctx, dates);
   if (coding.length) lines.push(`⚠️ ${coding.join(' · ')}`, '');
 
   lines.push('Please reply here to confirm you have seen this.');
@@ -3302,14 +3328,53 @@ function buildSmMsg(ctx, detail) {
   return lines.join('\n').trim();
 }
 
+function larkSetDays(on) {
+  document.querySelectorAll('.lark-day-cb').forEach(cb => {
+    cb.checked = on;
+    cb.closest('label').classList.toggle('checked', on);
+  });
+  larkPreview();
+}
+
+// Day chips for the drivers message — Sunday is a rest day, so it's omitted
+function renderLarkDayChips(ctx) {
+  const counts = {};
+  ctx.scheds.forEach(s => { counts[s.date] = (counts[s.date]||0) + 1; });
+  const prev = new Set([...document.querySelectorAll('.lark-day-cb:checked')].map(cb => cb.value));
+  const hadChips = document.querySelectorAll('.lark-day-cb').length > 0;
+
+  document.getElementById('lark-days').innerHTML = ctx.days.filter(d => !isSun(d)).map(d => {
+    const ds = dStr(d), n = counts[ds] || 0;
+    // Default: tick days that actually have routes
+    const on = hadChips ? prev.has(ds) : n > 0;
+    return `<label class="${on?'checked':''}"${n?'':' style="opacity:.45"'}>
+      <input type="checkbox" class="lark-day-cb" value="${ds}" ${on?'checked':''}
+        onchange="this.closest('label').classList.toggle('checked',this.checked);larkPreview()">
+      ${DAY_LBL(d)}${n ? ` (${n})` : ''}</label>`;
+  }).join('');
+}
+
+function larkPickedDays() {
+  const cbs = [...document.querySelectorAll('.lark-day-cb')];
+  if (!cbs.length) return null;                       // chips not built yet
+  const on = cbs.filter(cb => cb.checked).map(cb => cb.value);
+  return on.length === cbs.length ? null : new Set(on);  // null = whole week
+}
+
 async function larkPreview() {
   const detail = document.querySelector('input[name="lark-detail"]:checked')?.value || 'full';
   const ctx    = await gatherWeek();
+
+  // Day chips only matter for the drivers chat
+  const driversOn = document.querySelector('.lark-chat-cb[value="drivers"]')?.checked;
+  document.getElementById('lark-days-wrap').style.display = driversOn ? '' : 'none';
+  if (driversOn && !document.querySelectorAll('.lark-day-cb').length) renderLarkDayChips(ctx);
+  const dayFilter = driversOn ? larkPickedDays() : null;
   // Delivery reads the detail off the image, so it gets a caption instead.
   // The full text is kept as a fallback in case the image fails to upload.
   const built  = {
     delivery: buildDeliveryCaption(ctx),
-    drivers:  buildDriversMsg(ctx, detail),
+    drivers:  buildDriversMsg(ctx, detail, dayFilter),
     sm:       buildSmMsg(ctx, detail)
   };
   const fallbacks = { delivery: buildDeliveryMsg(ctx, detail) };
@@ -3325,7 +3390,9 @@ async function larkPreview() {
              ${img ? `<div style="border:1px dashed var(--border);border-radius:6px;padding:14px;text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">🖼 schedule image</div>` : ''}
              <pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.6">${esc(body)}</pre>
            </div>`
-        : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">No SM deliveries this week — this chat will be skipped.</div>`}
+        : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${
+             k === 'sm' ? 'No SM deliveries this week' : 'No assignments on the selected days'
+           } — this chat will be skipped.</div>`}
     </div>`;
   }).join('');
   document.getElementById('lark-result').innerHTML =
