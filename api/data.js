@@ -4,6 +4,16 @@ const { put } = require('@vercel/blob');   // put only — no list/del/head/copy
 const SECRET     = process.env.JWT_SECRET || 'sii-dev-secret-CHANGE-IN-PRODUCTION';
 const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays', 'fuel_soa', 'rfid_soa'];
 
+// Purchase orders and driver slips are sharded by month (po_2026_09,
+// slips_2026_09) so a single save never has to rewrite a year of records.
+// Keeps every write small and well under Vercel's 4.5 MB request body limit.
+// Photos are never stored here — they are separate blobs, see /api/upload.
+const SHARDED_COL = /^(po|slips)_\d{4}_(0[1-9]|1[0-2])$/;
+
+function isValidCol(col) {
+  return VALID_COLS.includes(col) || SHARDED_COL.test(col || '');
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  BLOB ACCESS — zero advanced operations
 //
@@ -21,25 +31,40 @@ function colUrl(col) {
   return `https://${parts[3]}.public.blob.vercel-storage.com/sii/${col}.json`;
 }
 
+// Thrown when the store is unreachable/suspended. Callers MUST NOT treat this
+// as "empty collection" — doing so would overwrite good data with nothing.
+class StoreUnavailable extends Error {}
+
 async function readCol(col) {
   const url = colUrl(col);
-  if (!url) {
-    console.error('BLOB_READ_WRITE_TOKEN missing or malformed');
-    return [];
-  }
+  if (!url) throw new StoreUnavailable('BLOB_READ_WRITE_TOKEN missing or malformed');
+
+  let res;
   try {
     // Cache-bust so edits by one user are seen immediately by others
-    const res = await fetch(`${url}?t=${Date.now()}`, {
+    res = await fetch(`${url}?t=${Date.now()}`, {
       headers: { 'Cache-Control': 'no-cache, no-store' }
     });
-    if (res.ok)             return await res.json();
-    if (res.status === 404) return [];          // collection not created yet
-    console.error(`readCol(${col}) unexpected status ${res.status}`);
-    return [];
   } catch (e) {
-    console.error(`readCol(${col}) error:`, e);
-    return [];
+    throw new StoreUnavailable(`network error reading ${col}: ${e.message}`);
   }
+
+  if (res.ok) {
+    try {
+      const json = await res.json();
+      if (!Array.isArray(json)) throw new Error('not an array');
+      return json;
+    } catch (e) {
+      // Corrupt/partial body — refuse rather than risk clobbering
+      throw new StoreUnavailable(`bad JSON in ${col}: ${e.message}`);
+    }
+  }
+
+  // 404 is the ONLY status that legitimately means "nothing stored yet"
+  if (res.status === 404) return [];
+
+  // 403 = store suspended or token revoked. Anything else is unexpected.
+  throw new StoreUnavailable(`status ${res.status} reading ${col}`);
 }
 
 async function writeCol(col, data) {
@@ -78,58 +103,72 @@ module.exports = async function handler(req, res) {
   if (!caller) return res.status(401).json({ error: 'Unauthorized — please log in again' });
 
   const col = req.query.col;
-  if (!VALID_COLS.includes(col)) return res.status(400).json({ error: `Invalid collection: ${col}` });
+  if (!isValidCol(col)) return res.status(400).json({ error: `Invalid collection: ${col}` });
 
-  if (req.method === 'GET') {
-    return res.json({ data: await readCol(col) });
-  }
-
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
-
-  const { op, item, items, id, ids } = req.body || {};
-
-  // Every branch below performs exactly one write (1 simple op, 0 advanced).
-  switch (op) {
-    case 'save': {
-      if (!item || !item.id) return res.status(400).json({ error: 'Item with id required' });
-      const data = await readCol(col);
-      const idx  = data.findIndex(x => x.id === item.id);
-      if (idx > -1) data[idx] = item; else data.push(item);
-      await writeCol(col, data);
-      return res.json({ ok: true, data });
+  try {
+    if (req.method === 'GET') {
+      return res.json({ data: await readCol(col) });
     }
 
-    case 'saveMany': {
-      if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
-      const byId = new Map((await readCol(col)).map(x => [x.id, x]));
-      for (const it of items) if (it && it.id) byId.set(it.id, it);
-      const data = [...byId.values()];
-      await writeCol(col, data);
-      return res.json({ ok: true, data, saved: items.length });
-    }
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    if (caller.role === 'viewer') return res.status(403).json({ error: 'Read-only access' });
 
-    case 'delete': {
-      if (!id) return res.status(400).json({ error: 'id required' });
-      const data = (await readCol(col)).filter(x => x.id !== id);
-      await writeCol(col, data);
-      return res.json({ ok: true, data });
-    }
+    const { op, item, items, id, ids } = req.body || {};
 
-    case 'deleteMany': {
-      if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
-      const drop = new Set(ids);
-      const data = (await readCol(col)).filter(x => !drop.has(x.id));
-      await writeCol(col, data);
-      return res.json({ ok: true, data });
-    }
+    // Each branch reads first, then performs exactly one write.
+    // If the read throws StoreUnavailable we never reach writeCol, so a
+    // failed read can never blank out an existing collection.
+    switch (op) {
+      case 'save': {
+        if (!item || !item.id) return res.status(400).json({ error: 'Item with id required' });
+        const data = await readCol(col);
+        const idx  = data.findIndex(x => x.id === item.id);
+        if (idx > -1) data[idx] = item; else data.push(item);
+        await writeCol(col, data);
+        return res.json({ ok: true, data });
+      }
 
-    case 'clear': {
-      await writeCol(col, []);
-      return res.json({ ok: true, data: [] });
-    }
+      case 'saveMany': {
+        if (!Array.isArray(items)) return res.status(400).json({ error: 'items array required' });
+        const byId = new Map((await readCol(col)).map(x => [x.id, x]));
+        for (const it of items) if (it && it.id) byId.set(it.id, it);
+        const data = [...byId.values()];
+        await writeCol(col, data);
+        return res.json({ ok: true, data, saved: items.length });
+      }
 
-    default:
-      return res.status(400).json({ error: `Unknown op: ${op}` });
+      case 'delete': {
+        if (!id) return res.status(400).json({ error: 'id required' });
+        const data = (await readCol(col)).filter(x => x.id !== id);
+        await writeCol(col, data);
+        return res.json({ ok: true, data });
+      }
+
+      case 'deleteMany': {
+        if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+        const drop = new Set(ids);
+        const data = (await readCol(col)).filter(x => !drop.has(x.id));
+        await writeCol(col, data);
+        return res.json({ ok: true, data });
+      }
+
+      // Deliberate wipe — the only op that writes without reading first
+      case 'clear': {
+        await writeCol(col, []);
+        return res.json({ ok: true, data: [] });
+      }
+
+      default:
+        return res.status(400).json({ error: `Unknown op: ${op}` });
+    }
+  } catch (e) {
+    const suspended = /suspended/i.test(e.message || '') || /status 403/.test(e.message || '');
+    console.error(`/api/data ${col} failed:`, e.message);
+    return res.status(503).json({
+      error: suspended
+        ? 'Storage is suspended — check Blob usage/billing in your Vercel dashboard. No data was changed.'
+        : `Storage unavailable: ${e.message}. No data was changed.`,
+      storeSuspended: suspended
+    });
   }
 };
