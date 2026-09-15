@@ -326,6 +326,58 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 /* Numeric column alignment */
 .num { text-align: right }
 
+/* ── Driver Slip ── */
+.slip-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
+.slip-card-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer}
+.slip-card-hdr:hover{background:var(--bg)}
+.slip-when{font-size:12px;font-weight:800;color:var(--accent);min-width:74px}
+.slip-plate{font-size:14px;font-weight:800;letter-spacing:.3px}
+.slip-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.slip-stat{margin-left:auto;font-size:10px;font-weight:800;padding:3px 9px;border-radius:12px;white-space:nowrap}
+.st-pending{background:#fef9c3;color:#854d0e}
+.st-loaded{background:#dbeafe;color:#1e40af}
+.st-transit{background:#ecfeff;color:#0891b2}
+.st-done{background:#f0fdf4;color:#166534}
+
+.slip-sec{border-top:1px solid var(--border);padding:12px 14px}
+.slip-sec h4{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--muted);margin-bottom:9px;display:flex;align-items:center;gap:6px}
+.slip-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px}
+.slip-f label{display:block;font-size:10px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.slip-f input,.slip-f select{padding:6px 9px;font-size:13px}
+
+.drop-row{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.drop-hdr{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:pointer;background:var(--bg)}
+.drop-no{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.drop-no.done{background:var(--green)}
+.drop-name{font-size:13px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop-body{padding:11px;border-top:1px solid var(--border)}
+.sig-pad{border:1.5px dashed var(--border);border-radius:8px;background:#fff;
+  touch-action:none;display:block;width:100%;height:130px}
+.photo-strip{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.photo-thumb{width:58px;height:58px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
+.photo-thumb.pending{opacity:.5;filter:grayscale(1)}
+.big-btn{width:100%;padding:13px;font-size:14px;font-weight:800;border:none;border-radius:9px;
+  cursor:pointer;color:#fff;background:var(--accent)}
+.big-btn.green{background:var(--green)}
+.big-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Offline banner */
+#sync-bar{position:fixed;bottom:0;left:0;right:0;background:var(--amber);color:#3a1d00;
+  padding:8px 14px;font-size:12px;font-weight:700;text-align:center;z-index:400;display:none}
+#sync-bar.show{display:block}
+
+@media(max-width:760px){
+  .layout{grid-template-columns:1fr}
+  aside{position:static;height:auto;flex-direction:row;overflow-x:auto;gap:4px}
+  aside .ns{display:none}
+  main{padding:12px}
+  .slip-grid{grid-template-columns:repeat(2,1fr)}
+}
+
 /* Print styles removed — use Save PNG button instead */
 </style>
 </head>
@@ -371,10 +423,13 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 
 <div class="layout">
 <aside>
-  <div class="ns">Schedule</div>
-  <button class="ni active" id="nav-cal"       onclick="go('cal')">      <span>📅</span> Schedule Grid</button>
-  <button class="ni"        id="nav-dash"      onclick="go('dash')">     <span>📊</span> Dashboard</button>
-  <div class="ns role-setup">Setup</div>
+  <div class="ns role-office">Schedule</div>
+  <button class="ni active role-office" id="nav-cal"  onclick="go('cal')">      <span>📅</span> Schedule Grid</button>
+  <button class="ni role-office" id="nav-dash"        onclick="go('dash')">     <span>📊</span> Dashboard</button>
+  <button class="ni role-office" id="nav-po"          onclick="go('po')">       <span>📋</span> Purchase Orders</button>
+  <div class="ns role-field">Operations</div>
+  <button class="ni role-field"  id="nav-slips"       onclick="go('slips')">    <span>🚚</span> Driver Slip</button>
+  <div class="ns role-office">Setup</div>
   <button class="ni role-setup" id="nav-customers" onclick="go('customers')"><span>🏢</span> Customers</button>
   <button class="ni role-setup" id="nav-drivers"   onclick="go('drivers')">  <span>👤</span> Drivers</button>
   <button class="ni role-setup" id="nav-trucks"    onclick="go('trucks')">   <span>🚛</span> Trucks</button>
@@ -392,6 +447,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <div class="ph">
     <div><h2>Schedule Grid</h2><p id="cal-lbl">—</p></div>
     <div class="ph-act">
+      <button class="btn btn-o btn-sm role-edit" onclick="resyncWeekToBase()" title="Re-push this week's schedules to Lark Base">⇅ Sync Base</button>
       <button class="btn btn-p btn-sm role-edit" onclick="openAddSched()">+ Add Schedule</button>
     </div>
   </div>
@@ -488,6 +544,73 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <div class="card">
     <div class="ch"><h3>📋 Full Week Schedule</h3></div>
     <div id="week-wrap" style="padding:0"></div>
+  </div>
+</div>
+
+<!-- ══ DRIVER SLIP ══ -->
+<div class="page" id="page-slips">
+  <div class="ph">
+    <div><h2>🚚 Driver Slip</h2><p id="slips-sub">—</p></div>
+    <div class="ph-act">
+      <select id="slips-when" onchange="renderSlipsPage()" style="width:auto;font-size:12px;padding:6px 10px">
+        <option value="today">Today</option>
+        <option value="tomorrow">Tomorrow</option>
+        <option value="week">This week</option>
+        <option value="all">All open</option>
+      </select>
+      <button class="btn btn-o btn-sm" onclick="renderSlipsPage()">↻ Refresh</button>
+    </div>
+  </div>
+  <div id="slips-list"></div>
+</div>
+
+<!-- ══ PURCHASE ORDERS ══ -->
+<div class="page" id="page-po">
+  <div class="ph">
+    <div><h2>📋 Purchase Orders</h2><p>Track POs and their line items through to delivery</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="exportPoCsv()">⬇ Export CSV</button>
+      <button class="btn btn-o btn-sm role-edit" onclick="document.getElementById('po-import-input').click()">⬆ Import JSON</button>
+      <input type="file" id="po-import-input" accept=".json" style="display:none" onchange="handlePoImport(this)">
+      <button class="btn btn-p btn-sm role-edit" onclick="openAddPo()">+ Add PO</button>
+    </div>
+  </div>
+
+  <div class="soa-fbar">
+    <div class="soa-fg"><label>Month</label>
+      <select id="po-month" onchange="renderPoPage()"></select></div>
+    <div class="soa-fg"><label>Year</label>
+      <select id="po-year" onchange="renderPoPage()"></select></div>
+    <div class="soa-fg"><label>Customer</label>
+      <select id="po-cust" onchange="renderPoTable()"><option value="">All</option></select></div>
+    <div class="soa-fg"><label>Status</label>
+      <select id="po-status" onchange="renderPoTable()">
+        <option value="">All</option>
+        <option value="pending">Pending</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="delivered">Delivered</option>
+        <option value="short">Short</option>
+        <option value="cancelled">Cancelled</option>
+      </select></div>
+    <div class="cust-search-wrap" style="max-width:170px">
+      <span class="si">🔍</span>
+      <input type="text" id="po-search" placeholder="PO number…" oninput="renderPoTable()">
+    </div>
+  </div>
+
+  <div class="soa-kgrid">
+    <div class="kpi blue">  <div class="kv" id="po-k-total">0</div><div class="kl">POs This Month</div></div>
+    <div class="kpi amber"> <div class="kv" id="po-k-pending">0</div><div class="kl">Pending</div></div>
+    <div class="kpi green"> <div class="kv" id="po-k-delivered">0</div><div class="kl">Delivered</div></div>
+    <div class="kpi purple"><div class="kv" id="po-k-qty">0</div><div class="kl">Total Qty Ordered</div></div>
+  </div>
+
+  <div class="card">
+    <div class="ch">
+      <h3>Orders</h3>
+      <span id="po-count" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="po-table" style="padding:0;overflow-x:auto"></div>
   </div>
 </div>
 
@@ -680,6 +803,62 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 </div>
 
 </main>
+</div>
+
+<!-- ════ MODAL: Purchase Order ════ -->
+<div class="modal-bg" id="m-po">
+  <div class="modal" style="width:620px">
+    <div class="modal-hdr">
+      <h3 id="m-po-title">Add Purchase Order</h3>
+      <button class="modal-close" onclick="closeModal('m-po')">✕</button>
+    </div>
+    <input type="hidden" id="f-po-id">
+    <input type="hidden" id="f-po-col">
+
+    <div class="field-row">
+      <div class="field"><label>PO Number</label>
+        <input type="text" id="f-po-no" placeholder="e.g. 4500123456"></div>
+      <div class="field"><label>Status</label>
+        <select id="f-po-status">
+          <option value="pending">Pending</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="delivered">Delivered</option>
+          <option value="short">Short shipped</option>
+          <option value="cancelled">Cancelled</option>
+        </select></div>
+    </div>
+
+    <div class="field">
+      <label>Customer</label>
+      <select id="f-po-cid" onchange="poCustPick()"></select>
+    </div>
+    <div class="field" id="f-po-cname-wrap" style="display:none">
+      <label>Customer name (not in list)</label>
+      <input type="text" id="f-po-cname" placeholder="Type the customer name">
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Order Date</label><input type="date" id="f-po-date"></div>
+      <div class="field"><label>Delivery / Due Date</label><input type="date" id="f-po-due"></div>
+    </div>
+
+    <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
+      <span>Line items</span>
+      <span style="text-transform:none;letter-spacing:0">
+        <button class="btn btn-o btn-xs" onclick="addPoItemRow()">+ Add item</button>
+      </span>
+    </div>
+    <div id="po-items" style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px" id="po-items-sum">No items</div>
+
+    <div class="field"><label>Notes</label><input type="text" id="f-po-notes" placeholder="Optional"></div>
+
+    <div class="modal-foot">
+      <button class="btn btn-r btn-sm" id="btn-del-po" onclick="deletePo()" style="display:none;margin-right:auto">🗑 Delete</button>
+      <button class="btn btn-o btn-sm" onclick="closeModal('m-po')">Cancel</button>
+      <button class="btn btn-p btn-sm" onclick="savePo()">Save PO</button>
+    </div>
+  </div>
 </div>
 
 <!-- ════ MODAL: Send to Lark ════ -->
@@ -950,11 +1129,20 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="field"><label>Full Name</label><input type="text" id="f-ufullname" placeholder="e.g. Juan Dela Cruz"></div>
     <div class="field">
       <label>Role</label>
-      <select id="f-urole">
+      <select id="f-urole" onchange="userRolePick()">
         <option value="admin">Admin — full access + user management</option>
         <option value="editor" selected>Editor — add/edit schedules &amp; setup</option>
         <option value="viewer">HR Viewer — read-only schedule &amp; dashboard</option>
+        <option value="driver">Driver — own trips and driver slip only</option>
+        <option value="guard">Guard — loading checks and KM/time only</option>
       </select>
+    </div>
+    <div class="field" id="f-udriver-wrap" style="display:none">
+      <label>Linked driver record</label>
+      <select id="f-udriver"></select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">
+        This is how the app knows which schedules belong to this login.
+      </div>
     </div>
     <div class="field">
       <label id="f-upass-label">Password</label>
@@ -1013,6 +1201,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 </div>
 
 <div id="toast"></div>
+<div id="sync-bar"></div>
 
 <script>
 // ══════════════════════════════════════════════════
@@ -1071,7 +1260,8 @@ async function showApp() {
   document.getElementById('user-avatar').textContent = (currentUser.name||currentUser.username).charAt(0).toUpperCase();
   document.getElementById('user-name').textContent   = currentUser.name || currentUser.username;
   const rb = document.getElementById('role-badge');
-  rb.textContent = currentUser.role === 'viewer' ? 'HR Viewer' : currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+  const ROLE_LABEL = { viewer:'HR Viewer', driver:'Driver', guard:'Guard', admin:'Admin', editor:'Editor' };
+  rb.textContent = ROLE_LABEL[currentUser.role] || currentUser.role;
   rb.className   = 'role-badge ' + currentUser.role;
   // Apply role-based UI
   applyRole(currentUser.role);
@@ -1081,13 +1271,40 @@ async function showApp() {
   renderCalendar();
 }
 
+// Field roles see only the driver slip — everything else is hidden from them.
+// This is UI-level only: the API still serves any collection to a valid login.
+const FIELD_ROLES = ['driver','guard'];
+const isField = r => FIELD_ROLES.includes(r);
+
 function applyRole(role) {
-  // Admin-only elements
-  document.querySelectorAll('.role-admin').forEach(el => el.style.display = role === 'admin' ? '' : 'none');
-  // Setup section: hidden for viewers
-  document.querySelectorAll('.role-setup').forEach(el => el.style.display = role === 'viewer' ? 'none' : '');
-  // Edit controls: hidden for viewers
-  document.querySelectorAll('.role-edit').forEach(el => el.style.display = role === 'viewer' ? 'none' : '');
+  const field = isField(role);
+  const show = (sel, on) => document.querySelectorAll(sel).forEach(el => el.style.display = on ? '' : 'none');
+
+  show('.role-admin', role === 'admin');
+  show('.role-setup', !field && role !== 'viewer');
+  show('.role-edit',  !field && role !== 'viewer');
+  // Office-only pages: schedule grid, dashboard, POs, SOAs
+  show('.role-office', !field);
+  // The slip section is the only thing drivers and guards get
+  show('.role-field', true);
+
+  if (field) {
+    document.getElementById('btn-png').style.display = 'none';
+    go('slips');
+  }
+}
+
+async function fillDriverSelect(selected) {
+  const drivers = await apiGet('drivers');
+  const sel = document.getElementById('f-udriver');
+  sel.innerHTML = '<option value="">— none —</option>' +
+    drivers.map(d => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+  if (selected) sel.value = selected;
+}
+
+function userRolePick() {
+  const r = document.getElementById('f-urole').value;
+  document.getElementById('f-udriver-wrap').style.display = r === 'driver' ? '' : 'none';
 }
 
 // ── Enter key on login ──
@@ -1203,6 +1420,8 @@ function go(page) {
   if (nav) nav.classList.add('active');
   if (page==='cal')       renderCalendar();
   if (page==='dash')      renderDashboard();
+  if (page==='po')        renderPoPage();
+  if (page==='slips')     renderSlipsPage();
   if (page==='customers') renderCustomersPage();
   if (page==='drivers')   renderDriversPage();
   if (page==='trucks')    renderTrucksPage();
@@ -1539,6 +1758,9 @@ async function saveSched() {
     closeModal('m-sched');
     toast(id ? 'Schedule updated ✓' : 'Schedule added ✓', 'ok');
     renderCalendar();
+    // Push to Lark Base afterwards — the schedule is already safely stored,
+    // so a Base outage must never make the save look like it failed
+    syncScheduleToBase(entry);
   };
 
   if (needsPermit) {
@@ -1553,7 +1775,101 @@ async function deleteSched() {
   confirm2('Delete this schedule?', 'This cannot be undone.', async () => {
     await apiDelete('schedules', id);
     closeModal('m-sched'); toast('Deleted','ok'); renderCalendar();
+    deleteScheduleFromBase(id);   // drop the matching Base row too
   });
+}
+
+// ══════════════════════════════════════════════════
+//  LARK BASE SYNC  — one row per truck per day
+// ══════════════════════════════════════════════════
+
+// Flatten a schedule into the row shape the Base expects
+async function scheduleToBaseRow(s) {
+  const customers = await apiGet('customers');
+  const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+  const delivs = (s.deliveries || []).filter(d => d.cid);
+
+  const names = delivs.map(d => cMap[d.cid]?.name || '?');
+  const stops = delivs.map(d => {
+    const po = parseInt(d.po) || 0;
+    return `${cMap[d.cid]?.name || '?'} (${po} PO${po !== 1 ? 's' : ''})${d.pullout ? ' ↩ pullout' : ''}`;
+  }).join('\n');
+
+  const permits = [...new Set(delivs.flatMap(d => cMap[d.cid]?.permits || []))];
+
+  return {
+    syncKey:   s.id,
+    date:      s.date,
+    plate:     s.plate || '',
+    driver:    s.driver || '',
+    helpers:   (s.helpers || []).filter(Boolean).join(', '),
+    stops,
+    customers: names.join(', '),
+    totalPos:  delivs.reduce((n, d) => n + (parseInt(d.po) || 0), 0),
+    firstTime: delivs.length ? (cMap[delivs[0].cid]?.time || '') : '',
+    pullout:   delivs.some(d => d.pullout),
+    permits:   permits.join(', '),
+    notes:     s.notes || ''
+  };
+}
+
+async function syncScheduleToBase(schedule) {
+  try {
+    const row = await scheduleToBaseRow(schedule);
+    const res = await fetch('/api/base', {
+      method: 'POST', headers: authHdr(),
+      body: JSON.stringify({ op: 'upsert', row })
+    });
+    const json = await res.json();
+    if (json.disabled) return;                       // not configured — stay quiet
+    if (!json.ok) { baseWarn(json.error); return; }
+  } catch (e) {
+    baseWarn(e.message);
+  }
+}
+
+async function deleteScheduleFromBase(syncKey) {
+  try {
+    const res  = await fetch('/api/base', {
+      method: 'POST', headers: authHdr(),
+      body: JSON.stringify({ op: 'delete', syncKey })
+    });
+    const json = await res.json();
+    if (json.disabled || json.ok) return;
+    baseWarn(json.error);
+  } catch (e) {
+    baseWarn(e.message);
+  }
+}
+
+// The schedule itself saved fine, so this is a warning rather than an error
+function baseWarn(msg) {
+  console.error('Lark Base sync:', msg);
+  toast('Saved, but Lark Base sync failed — ' + (msg || 'unknown error'), 'err');
+}
+
+// Re-push every schedule in the visible week, for when things drift
+async function resyncWeekToBase() {
+  const days = getWeekDays();
+  const ws = dStr(days[0]), we = dStr(days[6]);
+  const schedules = (await apiGet('schedules')).filter(s => s.date >= ws && s.date <= we);
+  if (!schedules.length) { toast('No schedules this week to sync','err'); return; }
+
+  toast(`Syncing ${schedules.length} schedule${schedules.length!==1?'s':''}…`);
+  const rows = [];
+  for (const s of schedules) rows.push(await scheduleToBaseRow(s));
+
+  try {
+    const res  = await fetch('/api/base', {
+      method:'POST', headers: authHdr(), body: JSON.stringify({ op:'upsert', rows })
+    });
+    const json = await res.json();
+    if (json.disabled) { toast(json.error,'err'); return; }
+    if (!json.ok)      { toast('Sync failed — ' + json.error,'err'); return; }
+    toast(`Base updated · ${json.created} added, ${json.updated} updated`,'ok');
+  } catch(e) {
+    toast('Sync failed — ' + e.message,'err');
+  }
 }
 
 // ══════════════════════════════════════════════════
@@ -2673,6 +2989,966 @@ async function clearSoaData() {
 }
 
 // ══════════════════════════════════════════════════
+//  OFFLINE QUEUE  (IndexedDB — survives reload and signal loss)
+// ══════════════════════════════════════════════════
+// Photos can be a few hundred KB each, which is far past what localStorage
+// takes, so the queue lives in IndexedDB. Each entry is either a slip save or
+// a photo upload; both are replayed in order once the connection returns.
+const IDB_NAME = 'sii_offline', IDB_STORE = 'queue';
+let _idb = null;
+
+function idb() {
+  if (_idb) return _idb;
+  _idb = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+  return _idb;
+}
+
+async function idbAll() {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const r = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).getAll();
+    r.onsuccess = () => res(r.result || []);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function idbAdd(entry) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const r = db.transaction(IDB_STORE,'readwrite').objectStore(IDB_STORE).add({ ...entry, at: Date.now() });
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function idbDel(id) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const r = db.transaction(IDB_STORE,'readwrite').objectStore(IDB_STORE).delete(id);
+    r.onsuccess = () => res();
+    r.onerror   = () => rej(r.error);
+  });
+}
+
+async function queueDepth() { try { return (await idbAll()).length; } catch { return 0; } }
+
+async function showSyncBar() {
+  const n = await queueDepth();
+  const bar = document.getElementById('sync-bar');
+  if (!bar) return;
+  if (!n) { bar.classList.remove('show'); return; }
+  bar.textContent = navigator.onLine
+    ? `Syncing ${n} pending change${n!==1?'s':''}…`
+    : `📴 Offline — ${n} change${n!==1?'s':''} saved on this device, will upload when you reconnect`;
+  bar.classList.add('show');
+}
+
+let _flushing = false;
+async function flushQueue() {
+  if (_flushing || !navigator.onLine) { showSyncBar(); return; }
+  _flushing = true;
+  try {
+    const items = (await idbAll()).sort((a,b) => a.id - b.id);
+    for (const it of items) {
+      try {
+        if (it.kind === 'upload') {
+          const res = await fetch('/api/upload', {
+            method:'POST', headers: authHdr(),
+            body: JSON.stringify({ slipId: it.slipId, kind: it.photoKind, data: it.data })
+          });
+          const json = await res.json();
+          if (!res.ok || !json.url) throw new Error(json.error || 'upload failed');
+          // Swap the local placeholder for the real URL inside the stored slip
+          await slipReplacePhoto(it.col, it.slipId, it.localId, json.url);
+        } else if (it.kind === 'save') {
+          const res = await apiSave(it.col, it.item);
+          if (!res?.ok && !res?.data) throw new Error('save rejected');
+        }
+        await idbDel(it.id);
+      } catch (e) {
+        console.warn('queue item deferred:', e.message);
+        break;   // stop on first failure; order matters and the rest can wait
+      }
+    }
+  } finally {
+    _flushing = false;
+    showSyncBar();
+    if (document.getElementById('page-slips').classList.contains('active')) renderSlipsPage();
+  }
+}
+
+window.addEventListener('online',  () => { toast('Back online — syncing…'); flushQueue(); });
+window.addEventListener('offline', () => { showSyncBar(); });
+setInterval(() => { queueDepth().then(n => { if (n) flushQueue(); }); }, 30000);
+
+// ══════════════════════════════════════════════════
+//  DRIVER SLIP
+// ══════════════════════════════════════════════════
+const SLIP_STATUS = {
+  pending: { label:'Not loaded', cls:'st-pending' },
+  loaded:  { label:'Loaded',     cls:'st-loaded'  },
+  transit: { label:'In transit', cls:'st-transit' },
+  done:    { label:'Completed',  cls:'st-done'    }
+};
+
+const slipCol = dateStr => {
+  const [y,m] = String(dateStr||'').split('-');
+  return (y && m) ? `slips_${y}_${m}` : null;
+};
+const nowTime = () => new Date().toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit',hour12:false});
+
+// Build a slip skeleton from a schedule the first time it's opened
+function slipFromSchedule(s, cMap) {
+  return {
+    id: s.id,                       // same id as the schedule — one slip per truck-day
+    scheduleId: s.id,
+    date: s.date,
+    plate: s.plate || '',
+    driver: s.driver || '',
+    passenger: '',
+    gas: '', vanLoad: '',
+    kmOut: '', kmIn: '', timeOut: '', timeIn: '',
+    cash: '', expense: '', change: '',
+    loading: { guard:'', boxes:'', timeIn:'', timeOut:'', photos:[], notes:'' },
+    drops: (s.deliveries||[]).filter(d=>d.cid).map(d => ({
+      cid: d.cid,
+      customer: cMap[d.cid]?.name || '?',
+      address:  cMap[d.cid]?.address || '',
+      window:   cMap[d.cid]?.time || '',
+      qty: d.po || '',
+      timeIn:'', timeOut:'', receivingPerson:'', signature:'', photos:[], remarks:''
+    })),
+    releasedBy:'', checkedBy:'',
+    status: 'pending',
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  };
+}
+
+let _slipCache = {};   // slipId -> slip, for the open page
+
+async function renderSlipsPage() {
+  const role  = currentUser?.role;
+  const when  = document.getElementById('slips-when').value;
+  const today = new Date();
+
+  // Which dates are we showing?
+  let from, to;
+  if (when === 'today')         { from = to = dStr(today); }
+  else if (when === 'tomorrow') { from = to = dStr(addDays(today,1)); }
+  else if (when === 'week')     { const d = getMonday(today); from = dStr(d); to = dStr(addDays(d,6)); }
+  else                          { from = dStr(addDays(today,-30)); to = dStr(addDays(today,14)); }
+
+  document.getElementById('slips-sub').textContent =
+    role === 'driver' ? 'Your assigned trips'
+    : role === 'guard' ? 'Loading checks'
+    : 'All driver slips';
+
+  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+
+  let scheds = schedules.filter(s => s.date >= from && s.date <= to);
+
+  // Drivers only see their own runs. UI-level filter by design.
+  if (role === 'driver') {
+    const me = (currentUser.driverName || currentUser.name || '').trim().toLowerCase();
+    scheds = scheds.filter(s => (s.driver||'').trim().toLowerCase() === me);
+  }
+  scheds.sort((a,b) => a.date.localeCompare(b.date) || a.plate.localeCompare(b.plate));
+
+  // Pull the stored slips for each month in range
+  const cols = [...new Set(scheds.map(s => slipCol(s.date)).filter(Boolean))];
+  const stored = {};
+  for (const col of cols) for (const sl of await apiGet(col)) stored[sl.id] = sl;
+
+  _slipCache = {};
+  const list = document.getElementById('slips-list');
+
+  if (!scheds.length) {
+    list.innerHTML = `<div class="card"><div class="no-data">No trips for this period.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = scheds.map(s => {
+    const slip = stored[s.id] || slipFromSchedule(s, cMap);
+    _slipCache[slip.id] = slip;
+    const st = SLIP_STATUS[slip.status] || SLIP_STATUS.pending;
+    const done = slip.drops.filter(d => d.timeOut).length;
+    const d = new Date(s.date + 'T00:00:00');
+    return `<div class="slip-card" id="slip-${esc(slip.id)}">
+      <div class="slip-card-hdr" onclick="toggleSlip('${esc(slip.id)}')">
+        <div class="slip-when">${DAY_LBL(d)}</div>
+        <div style="flex:1;min-width:0">
+          <div class="slip-plate">🚛 ${esc(slip.plate)}</div>
+          <div class="slip-sub">${esc(slip.driver || 'no driver')} · ${slip.drops.length} drop${slip.drops.length!==1?'s':''}${done?` · ${done} done`:''}</div>
+        </div>
+        <span class="slip-stat ${st.cls}">${st.label}</span>
+      </div>
+      <div id="slipbody-${esc(slip.id)}" style="display:none"></div>
+    </div>`;
+  }).join('');
+
+  showSyncBar();
+}
+
+function toggleSlip(id) {
+  const body = document.getElementById('slipbody-'+id);
+  if (body.style.display !== 'none') { body.style.display = 'none'; return; }
+  body.style.display = '';
+  renderSlipBody(id);
+}
+
+const slipF = (id, label, val, type='text', extra='') =>
+  `<div class="slip-f"><label>${label}</label>
+     <input type="${type}" id="${id}" value="${esc(val??'')}" ${extra}></div>`;
+
+function renderSlipBody(id) {
+  const s = _slipCache[id]; if (!s) return;
+  const role = currentUser?.role;
+  const canGuard  = role === 'guard'  || role === 'admin' || role === 'editor';
+  const canDriver = role === 'driver' || role === 'admin' || role === 'editor';
+  const ro = v => v ? '' : 'disabled';
+
+  const loading = s.loading || {};
+  const html = `
+    <!-- Loading / guard -->
+    <div class="slip-sec">
+      <h4>🛡 Loading check ${loading.timeOut ? '<span style="color:var(--green)">✓ done</span>' : ''}</h4>
+      <div class="slip-grid">
+        ${slipF(`g-guard-${id}`,'Guard on duty', loading.guard || (role==='guard'? (currentUser.name||'') : ''),'text',ro(canGuard))}
+        ${slipF(`g-boxes-${id}`,'Boxes counted', loading.boxes,'number',ro(canGuard))}
+        ${slipF(`g-in-${id}`,'Time in', loading.timeIn,'time',ro(canGuard))}
+        ${slipF(`g-out-${id}`,'Time out', loading.timeOut,'time',ro(canGuard))}
+        ${slipF(`s-kmout-${id}`,'KM out', s.kmOut,'number',ro(canGuard))}
+        ${slipF(`s-gas-${id}`,'Gas', s.gas,'text',ro(canGuard))}
+        ${slipF(`s-vanload-${id}`,'Van load', s.vanLoad,'text',ro(canGuard))}
+        ${slipF(`g-notes-${id}`,'Remarks', loading.notes,'text',ro(canGuard))}
+      </div>
+      <div class="photo-strip" id="gphotos-${id}">${photoStrip(loading.photos)}</div>
+      ${canGuard ? `<div style="display:flex;gap:7px;margin-top:9px">
+        <button class="btn btn-o btn-sm" onclick="pickPhoto('${esc(id)}','loading')">📷 Add photo</button>
+        <button class="btn btn-p btn-sm" onclick="saveLoading('${esc(id)}')">Save loading</button>
+      </div>` : ''}
+    </div>
+
+    <!-- Journey -->
+    <div class="slip-sec">
+      <h4>🧭 Journey</h4>
+      <div class="slip-grid">
+        ${slipF(`s-driver-${id}`,'Driver', s.driver,'text',ro(canDriver))}
+        ${slipF(`s-passenger-${id}`,'Passenger', s.passenger,'text',ro(canDriver))}
+        ${slipF(`s-timeout-${id}`,'Time out', s.timeOut,'time',ro(canDriver))}
+        ${slipF(`s-timein-${id}`,'Time in', s.timeIn,'time',ro(canDriver))}
+        ${slipF(`s-kmin-${id}`,'KM in', s.kmIn,'number',ro(canDriver))}
+        ${slipF(`s-cash-${id}`,'Cash', s.cash,'number',ro(canDriver))}
+        ${slipF(`s-expense-${id}`,'Expense', s.expense,'number',ro(canDriver))}
+        ${slipF(`s-change-${id}`,'Change', s.change,'number',ro(canDriver))}
+      </div>
+      ${canDriver ? `<div style="margin-top:10px">
+        ${s.status === 'pending' || s.status === 'loaded'
+          ? `<button class="big-btn" onclick="startJourney('${esc(id)}')">▶ Start journey</button>`
+          : s.status === 'transit'
+            ? `<button class="big-btn green" onclick="endJourney('${esc(id)}')">■ End journey (back at SII)</button>`
+            : `<div style="text-align:center;font-size:12px;color:var(--green);font-weight:700">✓ Trip completed</div>`}
+      </div>` : ''}
+    </div>
+
+    <!-- Drops -->
+    <div class="slip-sec">
+      <h4>📍 Drops</h4>
+      ${s.drops.map((d,i) => renderDrop(id, d, i, canDriver)).join('') ||
+        '<div style="font-size:12px;color:var(--muted)">No drops on this schedule.</div>'}
+    </div>
+
+    <!-- Sign-off -->
+    <div class="slip-sec">
+      <h4>✍️ Sign-off</h4>
+      <div class="slip-grid">
+        ${slipF(`s-released-${id}`,'Released by', s.releasedBy,'text',ro(canGuard))}
+        ${slipF(`s-checked-${id}`,'Checked by', s.checkedBy,'text',ro(canGuard||canDriver))}
+      </div>
+      <div style="display:flex;gap:7px;margin-top:9px">
+        <button class="btn btn-p btn-sm" onclick="saveSlipHeader('${esc(id)}')">Save slip</button>
+      </div>
+    </div>`;
+
+  document.getElementById('slipbody-'+id).innerHTML = html;
+}
+
+function photoStrip(photos) {
+  return (photos||[]).map(p => {
+    const pending = !p.url;
+    const src = p.url || p.preview || '';
+    return `<img class="photo-thumb${pending?' pending':''}" src="${esc(src)}"
+             title="${pending?'waiting to upload':'uploaded'}"
+             onclick="window.open('${esc(p.url||'')}','_blank')">`;
+  }).join('');
+}
+
+function renderDrop(slipId, d, i, canEdit) {
+  const done = !!d.timeOut;
+  const dis  = canEdit ? '' : 'disabled';
+  return `<div class="drop-row">
+    <div class="drop-hdr" onclick="toggleDrop('${esc(slipId)}',${i})">
+      <div class="drop-no${done?' done':''}">${done?'✓':i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div class="drop-name">${esc(d.customer)}</div>
+        <div class="slip-sub">${esc(d.window||'')}${d.qty?` · ${esc(String(d.qty))} PO`:''}${d.timeIn?` · in ${esc(d.timeIn)}`:''}${d.timeOut?` · out ${esc(d.timeOut)}`:''}</div>
+      </div>
+    </div>
+    <div class="drop-body" id="drop-${esc(slipId)}-${i}" style="display:none">
+      ${d.address ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">📍 ${esc(d.address)}
+        <button class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
+      <div class="slip-grid">
+        ${slipF(`d-qty-${slipId}-${i}`,'Qty', d.qty,'text',dis)}
+        ${slipF(`d-in-${slipId}-${i}`,'Time in', d.timeIn,'time',dis)}
+        ${slipF(`d-out-${slipId}-${i}`,'Time out', d.timeOut,'time',dis)}
+        ${slipF(`d-recv-${slipId}-${i}`,'Receiving person', d.receivingPerson,'text',dis)}
+      </div>
+      <div class="slip-f" style="margin-top:9px">
+        <label>Remarks</label>
+        <input type="text" id="d-rem-${slipId}-${i}" value="${esc(d.remarks||'')}" ${dis}>
+      </div>
+
+      <div style="margin-top:10px">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Signature</label>
+        ${d.signature
+          ? `<img src="${esc(d.signature)}" style="max-height:90px;border:1px solid var(--border);border-radius:8px;background:#fff">
+             ${canEdit?`<button class="btn btn-o btn-xs" style="margin-left:7px" onclick="clearSig('${esc(slipId)}',${i})">Redo</button>`:''}`
+          : canEdit
+            ? `<canvas class="sig-pad" id="sig-${esc(slipId)}-${i}"></canvas>
+               <button class="btn btn-o btn-xs" style="margin-top:5px" onclick="wipeSig('${esc(slipId)}',${i})">Clear</button>`
+            : `<div style="font-size:12px;color:var(--muted)">Not signed</div>`}
+      </div>
+
+      <div class="photo-strip" id="dphotos-${esc(slipId)}-${i}">${photoStrip(d.photos)}</div>
+
+      ${canEdit ? `<div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-o btn-sm" onclick="stampDrop('${esc(slipId)}',${i},'in')">⏱ Arrived</button>
+        <button class="btn btn-o btn-sm" onclick="pickPhoto('${esc(slipId)}','drop',${i})">📷 Photo</button>
+        <button class="btn btn-p btn-sm" style="margin-left:auto" onclick="completeDrop('${esc(slipId)}',${i})">✓ Complete drop</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleDrop(slipId, i) {
+  const el = document.getElementById(`drop-${slipId}-${i}`);
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (!open) initSigPad(slipId, i);
+}
+
+function navTo(addr) {
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr), '_blank');
+}
+
+// ── Signature pad ──
+const _sig = {};
+function initSigPad(slipId, i) {
+  const cv = document.getElementById(`sig-${slipId}-${i}`);
+  if (!cv || cv.dataset.ready) return;
+  cv.dataset.ready = '1';
+  const rect = cv.getBoundingClientRect();
+  cv.width = Math.max(300, Math.floor(rect.width));
+  cv.height = 130;
+  const ctx = cv.getContext('2d');
+  ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#1a1a1a';
+  let drawing = false;
+  const pos = e => {
+    const r = cv.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return [ (p.clientX - r.left) * (cv.width/r.width), (p.clientY - r.top) * (cv.height/r.height) ];
+  };
+  const down = e => { drawing = true; const [x,y]=pos(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); };
+  const move = e => { if(!drawing) return; const [x,y]=pos(e); ctx.lineTo(x,y); ctx.stroke(); _sig[`${slipId}-${i}`] = true; e.preventDefault(); };
+  const up   = () => { drawing = false; };
+  cv.addEventListener('pointerdown', down);
+  cv.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+function wipeSig(slipId, i) {
+  const cv = document.getElementById(`sig-${slipId}-${i}`);
+  if (cv) cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+  _sig[`${slipId}-${i}`] = false;
+}
+function clearSig(slipId, i) {
+  const s = _slipCache[slipId]; if (!s) return;
+  s.drops[i].signature = '';
+  renderSlipBody(slipId);
+  document.getElementById(`drop-${slipId}-${i}`).style.display = '';
+  initSigPad(slipId, i);
+}
+function grabSig(slipId, i) {
+  if (!_sig[`${slipId}-${i}`]) return '';
+  const cv = document.getElementById(`sig-${slipId}-${i}`);
+  return cv ? cv.toDataURL('image/png') : '';
+}
+
+// ── Photo capture: resize before upload ──
+function pickPhoto(slipId, where, dropIdx) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    try {
+      const dataUrl = await shrinkImage(file, 1280, 0.7);
+      await attachPhoto(slipId, where, dropIdx, dataUrl);
+    } catch(e) { toast('Could not read that photo: ' + e.message, 'err'); }
+  };
+  inp.click();
+}
+
+// A 3–4 MB phone photo becomes ~180 KB, which is what makes the storage
+// arithmetic work and what lets a photo sit in the offline queue.
+function shrinkImage(file, maxEdge, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width:w, height:h } = img;
+      const scale = Math.min(1, maxEdge / Math.max(w,h));
+      w = Math.round(w*scale); h = Math.round(h*scale);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(img.src);
+      resolve(cv.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('unsupported image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function attachPhoto(slipId, where, dropIdx, dataUrl) {
+  const s = _slipCache[slipId]; if (!s) return;
+  const localId = 'ph' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+  const entry = { localId, url:'', preview:dataUrl };
+
+  if (where === 'loading') { s.loading.photos = s.loading.photos || []; s.loading.photos.push(entry); }
+  else                     { s.drops[dropIdx].photos = s.drops[dropIdx].photos || []; s.drops[dropIdx].photos.push(entry); }
+
+  // Show it immediately, then persist and upload
+  const strip = where === 'loading'
+    ? document.getElementById(`gphotos-${slipId}`)
+    : document.getElementById(`dphotos-${slipId}-${dropIdx}`);
+  if (strip) strip.innerHTML = photoStrip(where==='loading' ? s.loading.photos : s.drops[dropIdx].photos);
+
+  await persistSlip(s);
+  await idbAdd({ kind:'upload', col: slipCol(s.date), slipId, localId,
+                 photoKind: where === 'loading' ? 'load' : `drop${dropIdx+1}`, data: dataUrl });
+  showSyncBar();
+  flushQueue();
+}
+
+// Called by the queue once a photo finally uploads
+async function slipReplacePhoto(col, slipId, localId, url) {
+  const all = await apiGet(col);
+  const s = all.find(x => x.id === slipId); if (!s) return;
+  let hit = false;
+  const swap = arr => (arr||[]).forEach(p => { if (p.localId === localId) { p.url = url; delete p.preview; hit = true; } });
+  swap(s.loading?.photos);
+  (s.drops||[]).forEach(d => swap(d.photos));
+  if (!hit) return;
+  s.updatedAt = new Date().toISOString();
+  await apiSave(col, s);
+  if (_slipCache[slipId]) _slipCache[slipId] = s;
+}
+
+// ── Persist: straight through when online, queued when not ──
+async function persistSlip(s) {
+  s.updatedAt = new Date().toISOString();
+  const col = slipCol(s.date);
+  if (!col) { toast('Slip has no valid date','err'); return false; }
+  _slipCache[s.id] = s;
+
+  if (!navigator.onLine) {
+    await idbAdd({ kind:'save', col, item: s });
+    showSyncBar();
+    return true;
+  }
+  try {
+    const res = await apiSave(col, s);
+    if (!res?.ok && !res?.data) throw new Error('rejected');
+    return true;
+  } catch (e) {
+    await idbAdd({ kind:'save', col, item: s });   // keep it rather than lose it
+    showSyncBar();
+    return true;
+  }
+}
+
+const val = id => (document.getElementById(id)?.value ?? '').trim();
+
+async function saveLoading(id) {
+  const s = _slipCache[id]; if (!s) return;
+  s.loading = { ...(s.loading||{}),
+    guard: val(`g-guard-${id}`), boxes: val(`g-boxes-${id}`),
+    timeIn: val(`g-in-${id}`), timeOut: val(`g-out-${id}`),
+    notes: val(`g-notes-${id}`), photos: s.loading?.photos || [] };
+  s.kmOut   = val(`s-kmout-${id}`);
+  s.gas     = val(`s-gas-${id}`);
+  s.vanLoad = val(`s-vanload-${id}`);
+  if (s.loading.timeOut && s.status === 'pending') s.status = 'loaded';
+  if (await persistSlip(s)) { toast('Loading saved ✓','ok'); renderSlipsPage(); }
+}
+
+async function saveSlipHeader(id) {
+  const s = _slipCache[id]; if (!s) return;
+  s.driver     = val(`s-driver-${id}`);
+  s.passenger  = val(`s-passenger-${id}`);
+  s.timeOut    = val(`s-timeout-${id}`);
+  s.timeIn     = val(`s-timein-${id}`);
+  s.kmIn       = val(`s-kmin-${id}`);
+  s.cash       = val(`s-cash-${id}`);
+  s.expense    = val(`s-expense-${id}`);
+  s.change     = val(`s-change-${id}`);
+  s.releasedBy = val(`s-released-${id}`);
+  s.checkedBy  = val(`s-checked-${id}`);
+  if (await persistSlip(s)) toast('Slip saved ✓','ok');
+}
+
+async function startJourney(id) {
+  const s = _slipCache[id]; if (!s) return;
+  s.timeOut = s.timeOut || nowTime();
+  s.status  = 'transit';
+  if (await persistSlip(s)) { toast('Journey started · ' + s.timeOut,'ok'); renderSlipsPage(); }
+}
+
+async function endJourney(id) {
+  const s = _slipCache[id]; if (!s) return;
+  const open = s.drops.filter(d => !d.timeOut).length;
+  const finish = async () => {
+    s.timeIn = s.timeIn || nowTime();
+    s.kmIn   = val(`s-kmin-${id}`) || s.kmIn;
+    s.status = 'done';
+    if (await persistSlip(s)) { toast('Journey completed · ' + s.timeIn,'ok'); renderSlipsPage(); }
+  };
+  if (open) confirm2(`${open} drop${open!==1?'s':''} not completed`,'End the journey anyway?', finish);
+  else await finish();
+}
+
+async function stampDrop(id, i) {
+  const s = _slipCache[id]; if (!s) return;
+  const el = document.getElementById(`d-in-${id}-${i}`);
+  if (el) el.value = nowTime();
+  s.drops[i].timeIn = nowTime();
+  await persistSlip(s);
+  toast('Arrival ' + s.drops[i].timeIn,'ok');
+}
+
+async function completeDrop(id, i) {
+  const s = _slipCache[id]; if (!s) return;
+  const d = s.drops[i];
+  d.qty             = val(`d-qty-${id}-${i}`);
+  d.timeIn          = val(`d-in-${id}-${i}`) || d.timeIn;
+  d.timeOut         = val(`d-out-${id}-${i}`) || nowTime();
+  d.receivingPerson = val(`d-recv-${id}-${i}`);
+  d.remarks         = val(`d-rem-${id}-${i}`);
+  const sig = grabSig(id, i);
+  if (sig) d.signature = sig;
+
+  if (!d.receivingPerson) { toast('Enter who received the delivery','err'); return; }
+  if (!d.signature)       { toast('Ask the receiver to sign first','err'); return; }
+
+  if (s.status === 'pending' || s.status === 'loaded') s.status = 'transit';
+  if (await persistSlip(s)) {
+    toast(`${d.customer} completed ✓`,'ok');
+    renderSlipBody(id);
+  }
+}
+
+// ══════════════════════════════════════════════════
+//  PURCHASE ORDERS  (sharded one blob per month)
+// ══════════════════════════════════════════════════
+const PO_STATUS = {
+  pending:   { label:'Pending',   bg:'#fef9c3', fg:'#854d0e' },
+  scheduled: { label:'Scheduled', bg:'#dbeafe', fg:'#1e40af' },
+  delivered: { label:'Delivered', bg:'#f0fdf4', fg:'#166534' },
+  short:     { label:'Short',     bg:'#fff1f0', fg:'#a32d2d' },
+  cancelled: { label:'Cancelled', bg:'#f3f4f6', fg:'#6b7280' }
+};
+
+const poCol = (y, m) => `po_${y}_${String(m).padStart(2,'0')}`;
+const poColFor = dateStr => {
+  const [y,m] = String(dateStr||'').split('-');
+  return (y && m) ? `po_${y}_${m}` : null;
+};
+const poQty = po => (po.items||[]).reduce((n,i)=>n+(parseFloat(i.qty)||0),0);
+
+function poCurrentCol() {
+  const y = parseInt(document.getElementById('po-year').value);
+  const m = parseInt(document.getElementById('po-month').value);
+  return poCol(y, m);
+}
+
+async function renderPoPage() {
+  initPoFilters();
+  await poPopulateCustomerFilter();
+  await renderPoTable();
+}
+
+function initPoFilters() {
+  const mSel = document.getElementById('po-month');
+  const ySel = document.getElementById('po-year');
+  if (mSel.dataset.init) return;
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const now = new Date();
+  mSel.innerHTML = months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  mSel.value = now.getMonth()+1;
+  const cy = now.getFullYear();
+  ySel.innerHTML = [cy-1, cy, cy+1].map(y=>`<option value="${y}">${y}</option>`).join('');
+  ySel.value = cy;
+  mSel.dataset.init = '1';
+}
+
+async function poPopulateCustomerFilter() {
+  const custs = await apiGet('customers');
+  const sel = document.getElementById('po-cust');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All</option>' +
+    custs.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+  sel.value = prev;
+}
+
+async function renderPoTable() {
+  const col  = poCurrentCol();
+  const pos  = await apiGet(col);
+  const fC   = document.getElementById('po-cust').value;
+  const fS   = document.getElementById('po-status').value;
+  const q    = document.getElementById('po-search').value.trim().toLowerCase();
+
+  const rows = pos.filter(p => {
+    if (fC && (p.customer||'') !== fC) return false;
+    if (fS && (p.status||'pending') !== fS) return false;
+    if (q  && !String(p.poNo||'').toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a,b) => String(b.orderDate||'').localeCompare(String(a.orderDate||'')));
+
+  // KPIs reflect the whole month, not the filtered view
+  document.getElementById('po-k-total').textContent     = pos.length;
+  document.getElementById('po-k-pending').textContent   = pos.filter(p=>(p.status||'pending')==='pending').length;
+  document.getElementById('po-k-delivered').textContent = pos.filter(p=>p.status==='delivered').length;
+  document.getElementById('po-k-qty').textContent       = pos.reduce((n,p)=>n+poQty(p),0).toLocaleString('en-PH');
+  document.getElementById('po-count').textContent =
+    `${rows.length} of ${pos.length} order${pos.length!==1?'s':''}`;
+
+  const canEdit = currentUser?.role !== 'viewer';
+
+  document.getElementById('po-table').innerHTML = rows.length
+    ? `<table>
+        <thead><tr>
+          <th style="width:34px"></th><th>PO Number</th><th>Customer</th>
+          <th>Order Date</th><th>Due</th>
+          <th class="num">Items</th><th class="num">Qty</th>
+          <th>Status</th>${canEdit?'<th style="text-align:right">Actions</th>':''}
+        </tr></thead>
+        <tbody>${rows.map(p => {
+          const st = PO_STATUS[p.status||'pending'] || PO_STATUS.pending;
+          const items = p.items||[];
+          return `<tr>
+            <td style="text-align:center">
+              ${items.length ? `<button class="btn btn-o btn-xs" style="padding:1px 6px" onclick="poToggle('${esc(p.id)}',this)">▸</button>` : ''}
+            </td>
+            <td><div class="en">${esc(p.poNo||'—')}</div>
+                ${p.source==='ocr'?'<div class="es">from PO Reader</div>':''}</td>
+            <td style="font-size:12px">${esc(p.customer||'—')}</td>
+            <td style="font-size:12px;white-space:nowrap">${esc(p.orderDate||'—')}</td>
+            <td style="font-size:12px;white-space:nowrap">${esc(p.dueDate||'—')}</td>
+            <td class="num">${items.length}</td>
+            <td class="num">${poQty(p).toLocaleString('en-PH')}</td>
+            <td><span class="tag" style="background:${st.bg};color:${st.fg}">${st.label}</span></td>
+            ${canEdit?`<td style="text-align:right;white-space:nowrap">
+              <select onchange="poQuickStatus('${esc(p.id)}',this.value)" style="width:auto;padding:3px 6px;font-size:11px">
+                ${Object.entries(PO_STATUS).map(([k,v])=>
+                  `<option value="${k}"${(p.status||'pending')===k?' selected':''}>${v.label}</option>`).join('')}
+              </select>
+              <button class="btn btn-o btn-xs" onclick="openEditPo('${esc(p.id)}')">Edit</button>
+            </td>`:''}
+          </tr>
+          <tr id="po-det-${esc(p.id)}" style="display:none">
+            <td></td>
+            <td colspan="${canEdit?8:7}" style="background:var(--bg);padding:8px 14px">
+              ${items.length ? `<table style="font-size:12px">
+                <thead><tr><th>Item Code</th><th>Description</th><th>Barcode</th><th class="num">Qty</th></tr></thead>
+                <tbody>${items.map(i=>`<tr>
+                  <td style="font-weight:600">${esc(i.code||'—')}</td>
+                  <td>${esc(i.name||'—')}</td>
+                  <td style="color:var(--muted);font-size:11px">${esc(i.barcode||'')}</td>
+                  <td class="num">${esc(String(i.qty??''))}</td>
+                </tr>`).join('')}</tbody></table>` : ''}
+              ${p.notes?`<div style="font-size:11px;color:var(--muted);margin-top:6px">📝 ${esc(p.notes)}</div>`:''}
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : `<div class="no-data">No purchase orders for this month${fC||fS||q?' matching the filters':''}.</div>`;
+}
+
+function poToggle(id, btn) {
+  const row = document.getElementById('po-det-'+id);
+  const open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : '';
+  btn.textContent = open ? '▸' : '▾';
+}
+
+async function poQuickStatus(id, status) {
+  const col = poCurrentCol();
+  const pos = await apiGet(col);
+  const po  = pos.find(p => p.id === id);
+  if (!po) return;
+  const res = await apiSave(col, { ...po, status, updatedAt: new Date().toISOString() });
+  if (!res?.ok && !res?.data) { toast('Update failed','err'); return; }
+  toast(`${po.poNo || 'PO'} → ${PO_STATUS[status]?.label || status}`,'ok');
+  renderPoTable();
+}
+
+// ── Line item rows in the modal ──
+function addPoItemRow(item = {}) {
+  const wrap = document.getElementById('po-items');
+  const row = document.createElement('div');
+  row.className = 'delivery-row po-item-row';
+  row.innerHTML = `
+    <input type="text" class="pi-code" placeholder="Item code" value="${esc(item.code||'')}" style="flex:1;font-size:12px;padding:5px 8px">
+    <input type="text" class="pi-name" placeholder="Description" value="${esc(item.name||'')}" style="flex:1.4;font-size:12px;padding:5px 8px">
+    <input type="text" class="pi-barcode" placeholder="Barcode" value="${esc(item.barcode||'')}" style="flex:1;font-size:12px;padding:5px 8px">
+    <input type="number" class="pi-qty" placeholder="Qty" value="${item.qty ?? ''}" min="0" style="width:74px;font-size:12px;padding:5px 8px;text-align:center">
+    <button class="btn btn-o btn-xs" onclick="this.closest('.po-item-row').remove();poItemsSummary()">✕</button>`;
+  wrap.appendChild(row);
+  row.querySelectorAll('input').forEach(i => i.oninput = poItemsSummary);
+  poItemsSummary();
+}
+
+function getPoItems() {
+  return [...document.querySelectorAll('.po-item-row')].map(r => ({
+    code:    r.querySelector('.pi-code').value.trim(),
+    name:    r.querySelector('.pi-name').value.trim(),
+    barcode: r.querySelector('.pi-barcode').value.trim(),
+    qty:     parseFloat(r.querySelector('.pi-qty').value) || 0
+  })).filter(i => i.code || i.name || i.qty);
+}
+
+function poItemsSummary() {
+  const items = getPoItems();
+  const qty = items.reduce((n,i)=>n+i.qty,0);
+  document.getElementById('po-items-sum').textContent =
+    items.length ? `${items.length} item${items.length!==1?'s':''} · ${qty.toLocaleString('en-PH')} total qty`
+                 : 'No items';
+}
+
+function poCustPick() {
+  const v = document.getElementById('f-po-cid').value;
+  document.getElementById('f-po-cname-wrap').style.display = v === '__other' ? '' : 'none';
+}
+
+async function poFillCustomerSelect(selectedName) {
+  const custs = await apiGet('customers');
+  const sel = document.getElementById('f-po-cid');
+  sel.innerHTML = custs.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')
+                + '<option value="__other">— other / type a name —</option>';
+  if (selectedName && custs.some(c => c.name === selectedName)) sel.value = selectedName;
+  else if (selectedName) { sel.value = '__other'; document.getElementById('f-po-cname').value = selectedName; }
+  poCustPick();
+}
+
+async function openAddPo() {
+  document.getElementById('m-po-title').textContent = 'Add Purchase Order';
+  document.getElementById('f-po-id').value = '';
+  document.getElementById('f-po-col').value = '';
+  document.getElementById('f-po-no').value = '';
+  document.getElementById('f-po-status').value = 'pending';
+  document.getElementById('f-po-cname').value = '';
+  document.getElementById('f-po-notes').value = '';
+  const y = document.getElementById('po-year').value;
+  const m = String(document.getElementById('po-month').value).padStart(2,'0');
+  document.getElementById('f-po-date').value = `${y}-${m}-01`;
+  document.getElementById('f-po-due').value = '';
+  document.getElementById('po-items').innerHTML = '';
+  addPoItemRow();
+  document.getElementById('btn-del-po').style.display = 'none';
+  await poFillCustomerSelect('');
+  openModal('m-po');
+}
+
+async function openEditPo(id) {
+  const col = poCurrentCol();
+  const pos = await apiGet(col);
+  const p = pos.find(x => x.id === id); if (!p) return;
+  document.getElementById('m-po-title').textContent = 'Edit Purchase Order';
+  document.getElementById('f-po-id').value = p.id;
+  document.getElementById('f-po-col').value = col;
+  document.getElementById('f-po-no').value = p.poNo || '';
+  document.getElementById('f-po-status').value = p.status || 'pending';
+  document.getElementById('f-po-date').value = p.orderDate || '';
+  document.getElementById('f-po-due').value = p.dueDate || '';
+  document.getElementById('f-po-notes').value = p.notes || '';
+  document.getElementById('po-items').innerHTML = '';
+  (p.items||[]).forEach(addPoItemRow);
+  if (!(p.items||[]).length) addPoItemRow();
+  document.getElementById('btn-del-po').style.display = '';
+  await poFillCustomerSelect(p.customer || '');
+  openModal('m-po');
+}
+
+async function savePo() {
+  const id     = document.getElementById('f-po-id').value;
+  const oldCol = document.getElementById('f-po-col').value;
+  const poNo   = document.getElementById('f-po-no').value.trim();
+  const status = document.getElementById('f-po-status').value;
+  const pick   = document.getElementById('f-po-cid').value;
+  const customer = pick === '__other'
+    ? document.getElementById('f-po-cname').value.trim()
+    : pick;
+  const orderDate = document.getElementById('f-po-date').value;
+  const dueDate   = document.getElementById('f-po-due').value;
+  const notes     = document.getElementById('f-po-notes').value.trim();
+  const items     = getPoItems();
+
+  if (!poNo)      { toast('PO number is required','err'); return; }
+  if (!customer)  { toast('Customer is required','err'); return; }
+  if (!orderDate) { toast('Order date is required','err'); return; }
+
+  // The order date decides which monthly shard the record lives in
+  const col = poColFor(orderDate);
+  if (!col) { toast('Order date is invalid','err'); return; }
+
+  const now = new Date().toISOString();
+  const uid_ = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  const existing = id ? (await apiGet(oldCol)).find(p => p.id === id) : null;
+
+  const item = {
+    ...(existing || {}),
+    id: id || uid_(),
+    poNo, customer, orderDate, dueDate, status, notes, items,
+    source: existing?.source || 'manual',
+    createdAt: existing?.createdAt || now,
+    updatedAt: now
+  };
+
+  // Changing the order date can move a PO to a different month — remove it
+  // from the old shard so it doesn't exist in two places at once
+  if (id && oldCol && oldCol !== col) {
+    await apiDelete(oldCol, id);
+  }
+  const res = await apiSave(col, item);
+  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
+
+  closeModal('m-po');
+  toast(id ? 'PO updated ✓' : 'PO added ✓','ok');
+
+  // Jump the view to the month the PO actually belongs to
+  const [, y, m] = col.split('_');
+  document.getElementById('po-year').value  = y;
+  document.getElementById('po-month').value = parseInt(m);
+  renderPoTable();
+}
+
+function deletePo() {
+  const id  = document.getElementById('f-po-id').value;
+  const col = document.getElementById('f-po-col').value || poCurrentCol();
+  if (!id) return;
+  confirm2('Delete this PO?','The order and its line items will be removed.', async () => {
+    await apiDelete(col, id);
+    closeModal('m-po'); toast('Deleted','ok'); renderPoTable();
+  });
+}
+
+// ── Import from the PO Reader (JSON) ──
+async function handlePoImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  try {
+    const parsed = JSON.parse(await file.text());
+    const list = Array.isArray(parsed) ? parsed : (parsed.orders || parsed.pos || []);
+    if (!Array.isArray(list) || !list.length) { toast('No orders found in that file','err'); return; }
+
+    const uid_ = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    const now  = new Date().toISOString();
+    const today = dStr(new Date());
+
+    // Group by month so each shard is written once
+    const byCol = {};
+    let skipped = 0;
+    for (const raw of list) {
+      const poNo     = String(raw.poNo || raw.po || raw.poNumber || '').trim();
+      const customer = String(raw.customer || raw.customerName || '').trim();
+      if (!poNo || !customer) { skipped++; continue; }
+      const orderDate = String(raw.orderDate || raw.date || today).slice(0,10);
+      const col = poColFor(orderDate);
+      if (!col) { skipped++; continue; }
+
+      const items = (raw.items || []).map(i => ({
+        code:    String(i.code || i.itemCode || '').trim(),
+        name:    String(i.name || i.description || '').trim(),
+        barcode: String(i.barcode || i.upc || '').trim(),
+        qty:     parseFloat(i.qty ?? i.quantity ?? 0) || 0
+      }));
+
+      (byCol[col] = byCol[col] || []).push({
+        id: uid_(), poNo, customer, orderDate,
+        dueDate: String(raw.dueDate || '').slice(0,10),
+        status: raw.status || 'pending',
+        notes: raw.notes || '', items,
+        source: 'ocr', createdAt: now, updatedAt: now
+      });
+    }
+
+    let added = 0, dupes = 0;
+    for (const [col, incoming] of Object.entries(byCol)) {
+      const current = await apiGet(col);
+      // Same PO number + customer already stored = skip
+      const seen = new Set(current.map(p => `${p.poNo}|${p.customer}`));
+      const fresh = incoming.filter(p => {
+        const k = `${p.poNo}|${p.customer}`;
+        if (seen.has(k)) { dupes++; return false; }
+        seen.add(k); return true;
+      });
+      if (!fresh.length) continue;
+      const res = await apiSaveMany(col, fresh);   // one write per month
+      if (!res) { toast(`Save failed for ${col}`,'err'); return; }
+      added += fresh.length;
+    }
+
+    const bits = [`Imported ${added} PO${added!==1?'s':''}`];
+    if (dupes)   bits.push(`${dupes} duplicate${dupes!==1?'s':''} skipped`);
+    if (skipped) bits.push(`${skipped} row${skipped!==1?'s':''} missing PO number or customer`);
+    toast(bits.join(' · '), added ? 'ok' : 'err');
+    renderPoTable();
+
+  } catch(e) {
+    console.error(e);
+    toast('Could not read that file: ' + e.message, 'err');
+  }
+}
+
+async function exportPoCsv() {
+  const col = poCurrentCol();
+  const pos = await apiGet(col);
+  if (!pos.length) { toast('Nothing to export for this month','err'); return; }
+  const header = ['PO Number','Customer','Order Date','Due Date','Status','Item Code','Description','Barcode','Qty'];
+  const rows = [];
+  for (const p of pos) {
+    const base = [p.poNo, p.customer, p.orderDate, p.dueDate||'', PO_STATUS[p.status||'pending']?.label||p.status];
+    if (!(p.items||[]).length) rows.push([...base,'','','','']);
+    else for (const i of p.items) rows.push([...base, i.code||'', i.name||'', i.barcode||'', i.qty??'']);
+  }
+  const csv = [header,...rows].map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `SII_POs_${col.replace('po_','')}.csv`;
+  a.click();
+  toast('CSV exported ✓','ok');
+}
+
+// ══════════════════════════════════════════════════
 //  RFID / TOLL SOA
 // ══════════════════════════════════════════════════
 async function renderRfidSoaPage() {
@@ -3023,7 +4299,7 @@ async function renderUsersPage() {
       <td><div class="en">${esc(u.username)}</div></td>
       <td>${esc(u.name)}</td>
       <td>${roleBadge(u.role)}</td>
-      <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditUser('${esc(u.id)}','${esc(u.username)}','${esc(u.name)}','${esc(u.role)}')">Edit</button></td>
+      <td style="text-align:right"><button class="btn btn-o btn-xs" onclick="openEditUser('${esc(u.id)}','${esc(u.username)}','${esc(u.name)}','${esc(u.role)}','${esc(u.driverName||'')}')">Edit</button></td>
     </tr>`).join('');
   } catch(e) {
     tbody.innerHTML='<tr><td colspan="4"><div class="no-data">Error loading users.</div></td></tr>';
@@ -3034,16 +4310,20 @@ function openAddUser() {
   document.getElementById('f-user-id').value=''; document.getElementById('f-uname').value='';
   document.getElementById('f-ufullname').value=''; document.getElementById('f-upass').value='';
   document.getElementById('f-urole').value='editor';
+  fillDriverSelect('');
+  userRolePick();
   document.getElementById('m-user-title').textContent='Add User';
   document.getElementById('btn-del-user').style.display='none';
   document.getElementById('f-upass-hint').style.display='none';
   openModal('m-user');
 }
 
-function openEditUser(id, username, name, role) {
+async function openEditUser(id, username, name, role, driverName) {
+  await fillDriverSelect(driverName||'');
   document.getElementById('f-user-id').value=id; document.getElementById('f-uname').value=username;
   document.getElementById('f-ufullname').value=name; document.getElementById('f-upass').value='';
   document.getElementById('f-urole').value=role;
+  userRolePick();
   document.getElementById('m-user-title').textContent='Edit User';
   document.getElementById('btn-del-user').style.display = id===currentUser?.id ? 'none' : '';
   document.getElementById('f-upass-hint').style.display='';
@@ -3061,7 +4341,8 @@ async function saveUser() {
   try {
     const res = await fetch('/api/auth', {
       method:'POST', headers: authHdr(),
-      body: JSON.stringify({ action:'save-user', userId, userUsername, userName, userRole, userPassword })
+      body: JSON.stringify({ action:'save-user', userId, userUsername, userName, userRole, userPassword,
+                             driverName: document.getElementById('f-udriver').value })
     });
     const json = await res.json();
     if (!res.ok) { toast(json.error||'Save failed','err'); return; }
@@ -3223,6 +4504,142 @@ function buildDeliveryMsg(ctx, detail) {
   return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
+// ══ Lark interactive card helpers ══
+// lark_md supports **bold**, `code`, links and \n
+const md    = c => ({ tag:'div', text:{ tag:'lark_md', content:c } });
+const two   = (a,b) => ({ tag:'div', fields:[
+                  { is_short:true, text:{ tag:'lark_md', content:a } },
+                  { is_short:true, text:{ tag:'lark_md', content:b } } ] });
+const hr    = () => ({ tag:'hr' });
+const note  = c => ({ tag:'note', elements:[{ tag:'plain_text', content:c }] });
+const mdEsc = s => String(s||'').replace(/([*_`~])/g,'\\$1');
+
+// ── Delivery team card ──
+function buildDeliveryCard(ctx) {
+  const { days, scheds, hMap } = ctx;
+  const trucks = new Set(scheds.map(s => s.plate));
+  const pos    = scheds.reduce((n,s) => n + (s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),0), 0);
+  const custs  = new Set(scheds.flatMap(s => (s.deliveries||[]).map(d=>d.cid).filter(Boolean)));
+
+  const el = [
+    two(`**Week**\n${larkHeader(days)}`, `**Trucks**\n${trucks.size}`),
+    two(`**Routes**\n${scheds.length}`,  `**Total POs**\n${pos}`),
+    two(`**Customers**\n${custs.size}`,  `**Delivery days**\n${new Set(scheds.map(s=>s.date)).size}`)
+  ];
+
+  const hols = days.filter(d => hMap[dStr(d)]).map(d => `${DAY_LBL(d)} — ${hMap[dStr(d)]}`);
+  const coding = codingConflicts(ctx);
+  if (hols.length || coding.length) {
+    el.push(hr());
+    if (hols.length)   el.push(md(`🎌 **No dispatch**\n${hols.map(h=>mdEsc(h)).join('\n')}`));
+    if (coding.length) el.push(md(`⚠️ **Coding conflict**\n${coding.map(c=>mdEsc(c)).join('\n')}`));
+  }
+
+  el.push(hr());
+  el.push(note(`Posted by ${currentUser?.name || currentUser?.username || 'SII'} · ${new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'})}`));
+
+  return { header:{ template:'red', title:'🚚 Weekly delivery schedule' }, elements: el };
+}
+
+// ── Drivers & Helpers card ──
+function buildDriversCard(ctx, detail, dates) {
+  const { days, scheds, cMap, hMap } = ctx;
+  const picked = days.filter(d => !dates || dates.has(dStr(d)));
+  if (!picked.length) return null;
+
+  const full = !dates || picked.length === days.length;
+  const hdr  = full ? larkHeader(days)
+                    : picked.map(d => d.toLocaleDateString('en-PH',{weekday:'short',month:'short',day:'numeric'})).join(' · ');
+
+  const el = [ md(`**${mdEsc(hdr)}**`) ];
+  let any = false;
+
+  for (const d of picked) {
+    const ds = dStr(d);
+    if (isSun(d) || isSat(d)) continue;
+    const dayScheds = scheds.filter(s => s.date === ds);
+    const hol = hMap[ds];
+    if (!dayScheds.length && !hol) continue;
+
+    el.push(hr());
+    el.push(md(`**▸ ${DAY_LBL(d)}**`));
+    if (hol) el.push(md(`🎌 ${mdEsc(hol)} — no dispatch`));
+
+    for (const s of dayScheds) {
+      any = true;
+      const helpers = (s.helpers||[]).filter(Boolean);
+      el.push(two(`**Truck**\n\`${mdEsc(s.plate||'—')}\``,
+                  `**Driver**\n${mdEsc(s.driver || 'TBA')}`));
+      if (helpers.length) el.push(md(`**Helpers** · ${mdEsc(helpers.join(', '))}`));
+
+      const delivs = (s.deliveries||[]).filter(x=>x.cid);
+      if (detail === 'full') {
+        const lines = delivs.map(dv => {
+          const c = cMap[dv.cid];
+          const t = c?.time ? `\`${mdEsc(c.time)}\` ` : '';
+          return `${t}${mdEsc(c?.name || '?')} · ${parseInt(dv.po)||0} PO${dv.pullout ? ' ↩ pullout' : ''}`;
+        });
+        if (lines.length) el.push(md(lines.join('\n')));
+        const permits = [...new Set(delivs.flatMap(dv => cMap[dv.cid]?.permits || []))];
+        if (permits.length) el.push(md(`📋 **Bring** · ${mdEsc(permits.join(', '))}`));
+      } else if (delivs.length) {
+        el.push(md(delivs.map(dv => mdEsc(cMap[dv.cid]?.name || '?')).join(' → ')));
+      }
+      if (s.notes) el.push(md(`📝 ${mdEsc(s.notes)}`));
+    }
+  }
+  if (!any) return null;
+
+  const coding = codingConflicts(ctx, dates);
+  el.push(hr());
+  if (coding.length) el.push(md(`⚠️ **Coding** · ${coding.map(c=>mdEsc(c)).join(' · ')}`));
+  el.push(note('Please reply in this chat to confirm you have seen this.'));
+
+  return { header:{ template:'blue', title:'👷 Driver assignments' }, elements: el };
+}
+
+// ── SM promodizer card ──
+function buildSmCard(ctx, detail) {
+  const { days, scheds, cMap } = ctx;
+  const isSM = cid => /^\s*SM\b/i.test(cMap[cid]?.name || '');
+
+  const rows = [];
+  for (const s of scheds) {
+    for (const dv of (s.deliveries||[]).filter(x => x.cid && isSM(x.cid))) {
+      rows.push({ date:s.date, plate:s.plate, name:cMap[dv.cid].name,
+                  po:parseInt(dv.po)||0, pullout:!!dv.pullout, time:cMap[dv.cid]?.time });
+    }
+  }
+  if (!rows.length) return null;
+
+  const el = [ md(`**${mdEsc(larkHeader(days))}**`), hr() ];
+  for (const r of rows) {
+    const d = new Date(r.date + 'T00:00:00');
+    const bits = [`${r.po} PO${r.po!==1?'s':''}`, `\`${mdEsc(r.plate)}\``];
+    if (detail === 'full' && r.time) bits.push(mdEsc(r.time));
+    if (r.pullout) bits.push('↩ pullout');
+    el.push(md(`**${DAY_LBL(d)} · ${mdEsc(r.name)}**\n${bits.join(' · ')}`));
+  }
+  el.push(hr());
+  el.push(note('Kindly arrange receiving personnel for these dates.'));
+
+  return { header:{ template:'orange', title:'🏬 SM delivery advice' }, elements: el };
+}
+
+// Flatten a card into plain text — used for the dialog preview and as the
+// fallback body if a tenant rejects the card schema
+function cardToText(card) {
+  if (!card) return null;
+  const out = [];
+  for (const e of card.elements || []) {
+    if (e.tag === 'hr') { out.push('──────────'); continue; }
+    if (e.tag === 'note') { out.push(e.elements.map(x=>x.content).join(' ')); continue; }
+    if (e.fields) { out.push(e.fields.map(f => f.text.content.replace(/\n/g,': ')).join('   ')); continue; }
+    if (e.text)  { out.push(e.text.content); continue; }
+  }
+  return out.join('\n').replace(/\*\*/g,'').replace(/`/g,'').replace(/\\([*_`~])/g,'$1').trim();
+}
+
 // ── Delivery team caption (sits under the image, so it stays short) ──
 function buildDeliveryCaption(ctx) {
   const { days, scheds, hMap } = ctx;
@@ -3328,6 +4745,47 @@ function buildSmMsg(ctx, detail) {
   return lines.join('\n').trim();
 }
 
+// Approximate how the card will look in Lark
+const LARK_TPL = {
+  red:'#e53e30', blue:'#3370ff', orange:'#ff8800', green:'#34c724',
+  turquoise:'#14c0c7', purple:'#7f3bf5', grey:'#8f959e', carmine:'#d83931'
+};
+
+function renderCardPreview(card, withImage) {
+  const colour = LARK_TPL[card.header?.template] || LARK_TPL.blue;
+  const mdHtml = s => esc(s)
+    .replace(/\\\*\\\*/g,'§§')                       // protect escaped markers
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`(.+?)`/g,'<code style="background:rgba(0,0,0,.06);padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+    .replace(/§§/g,'**')
+    .replace(/\\([*_`~])/g,'$1')
+    .replace(/\n/g,'<br>');
+
+  let body = '';
+  if (withImage) {
+    body += `<div style="border:1px dashed var(--border);border-radius:6px;padding:16px;text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">🖼 schedule image</div>`;
+  }
+  for (const e of card.elements || []) {
+    if (e.tag === 'hr') { body += `<div style="border-top:1px solid var(--border);margin:8px 0"></div>`; continue; }
+    if (e.tag === 'note') {
+      body += `<div style="font-size:11px;color:var(--muted);margin-top:4px">${esc(e.elements.map(x=>x.content).join(' '))}</div>`;
+      continue;
+    }
+    if (e.fields) {
+      body += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:7px">` +
+              e.fields.map(f=>`<div style="font-size:12px;line-height:1.5">${mdHtml(f.text.content)}</div>`).join('') +
+              `</div>`;
+      continue;
+    }
+    if (e.text) body += `<div style="font-size:12px;line-height:1.6;margin-bottom:7px">${mdHtml(e.text.content)}</div>`;
+  }
+
+  return `<div style="border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface)">
+    <div style="background:${colour};color:#fff;padding:8px 12px;font-size:12px;font-weight:700">${esc(card.header?.title||'')}</div>
+    <div style="padding:11px 13px">${body}</div>
+  </div>`;
+}
+
 function larkSetDays(on) {
   document.querySelectorAll('.lark-day-cb').forEach(cb => {
     cb.checked = on;
@@ -3372,6 +4830,12 @@ async function larkPreview() {
   const dayFilter = driversOn ? larkPickedDays() : null;
   // Delivery reads the detail off the image, so it gets a caption instead.
   // The full text is kept as a fallback in case the image fails to upload.
+  // Cards are what actually get sent; the text versions are the fallback body
+  const cards = {
+    delivery: buildDeliveryCard(ctx),
+    drivers:  buildDriversCard(ctx, detail, dayFilter),
+    sm:       buildSmCard(ctx, detail)
+  };
   const built  = {
     delivery: buildDeliveryCaption(ctx),
     drivers:  buildDriversMsg(ctx, detail, dayFilter),
@@ -3381,15 +4845,12 @@ async function larkPreview() {
   const picked = [...document.querySelectorAll('.lark-chat-cb:checked')].map(cb => cb.value);
   const out = picked.map(k => {
     const chat = LARK_CHATS.find(c=>c.key===k);
-    const body = built[k];
+    const card = cards[k];
     const img  = LARK_IMAGE_TARGETS.includes(k);
     return `<div style="margin-bottom:12px">
       <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">${esc(chat.label)}</div>
-      ${body
-        ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
-             ${img ? `<div style="border:1px dashed var(--border);border-radius:6px;padding:14px;text-align:center;font-size:11px;color:var(--muted);margin-bottom:8px">🖼 schedule image</div>` : ''}
-             <pre style="margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;line-height:1.6">${esc(body)}</pre>
-           </div>`
+      ${card
+        ? renderCardPreview(card, img)
         : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${
              k === 'sm' ? 'No SM deliveries this week' : 'No assignments on the selected days'
            } — this chat will be skipped.</div>`}
@@ -3397,7 +4858,7 @@ async function larkPreview() {
   }).join('');
   document.getElementById('lark-result').innerHTML =
     out || '<div style="font-size:12px;color:var(--muted)">Select at least one chat.</div>';
-  return { built, fallbacks, picked, detail };
+  return { built, cards, fallbacks, picked, detail };
 }
 
 // Map Lark's error codes to the actual fix, instead of guessing
@@ -3464,10 +4925,10 @@ async function checkLarkSetup() {
 
 async function sendToLark() {
   const btn = document.getElementById('btn-lark-send');
-  const { built, fallbacks, picked } = await larkPreview();
+  const { built, cards, fallbacks, picked } = await larkPreview();
   if (!picked.length) { toast('Pick at least one chat','err'); return; }
 
-  const targets = picked.filter(k => built[k]);      // drop chats with nothing to say
+  const targets = picked.filter(k => cards[k]);      // drop chats with nothing to say
   if (!targets.length) { toast('Nothing to send for the selected chats','err'); return; }
 
   // Only build the PNG if a chat that wants it is actually selected
@@ -3481,13 +4942,18 @@ async function sendToLark() {
     }
 
     btn.textContent = '⏳ Sending…';
-    const messages = {};
-    targets.forEach(k => { messages[k] = built[k]; });
+    const messages = {}, sendCards = {};
+    targets.forEach(k => {
+      sendCards[k] = cards[k];
+      // Plain-text version of the same card, used only if the card is rejected
+      messages[k]  = built[k] || cardToText(cards[k]);
+    });
 
     const res  = await fetch('/api/lark', {
       method:'POST', headers: authHdr(),
       body: JSON.stringify({
         targets, messages, png,
+        cards: sendCards,
         imageTargets: LARK_IMAGE_TARGETS,
         fallbackMessages: fallbacks,
         titles: { delivery: 'Weekly delivery schedule' }
