@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Sunbeams Impex Inc. Logistics Schedule",
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "dependencies": {
     "@vercel/blob": "^2.7.0"
