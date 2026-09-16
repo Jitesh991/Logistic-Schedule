@@ -340,6 +340,28 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
 .prep-crew-f input{font-size:12px;padding:6px 9px}
 
+.ctr-row{padding:12px 14px;border-bottom:1px solid #f0f2f7}
+.ctr-row.ctr-done{background:var(--green-lt)}
+.ctr-main{display:flex;gap:12px;align-items:flex-start}
+.ctr-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:6px}
+.ctr-docs{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:9px;
+  padding-top:9px;border-top:1px dashed var(--border)}
+.ctr-si{flex-shrink:0}
+.ctr-si label{display:block;font-size:9px;font-weight:800;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.ctr-si input{width:150px;font-size:12px;padding:6px 9px}
+.ctr-copies{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.copy-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+  padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;
+  background:var(--surface);user-select:none;transition:all .1s}
+.copy-chip input{accent-color:var(--green);width:14px;height:14px;cursor:pointer}
+.copy-chip.on{background:var(--green-lt);border-color:var(--green);color:#166534}
+.ctr-ok{font-size:11px;font-weight:800;color:var(--green);margin-left:4px}
+@media(max-width:760px){
+  .ctr-docs{flex-direction:column;align-items:stretch}
+  .ctr-si input{width:100%}
+}
+
 /* ── Driver Slip ── */
 .slip-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
   box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
@@ -460,6 +482,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <button class="ni active role-office" id="nav-cal"  onclick="go('cal')">      <span>📅</span> Schedule Grid</button>
   <button class="ni role-office" id="nav-dash"        onclick="go('dash')">     <span>📊</span> Dashboard</button>
   <button class="ni role-office" id="nav-po"          onclick="go('po')">       <span>📋</span> Purchase Orders</button>
+  <button class="ni role-office" id="nav-counter"     onclick="go('counter')">  <span>🧾</span> Countering</button>
   <div class="ns role-field">Operations</div>
   <button class="ni role-field"  id="nav-slips"       onclick="go('slips')">    <span>🚚</span> Driver Slip</button>
   <button class="ni role-field"  id="nav-prep"        onclick="go('prep')">     <span>✅</span> Preparation</button>
@@ -579,6 +602,41 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="ch"><h3>📋 Full Week Schedule</h3></div>
     <div id="week-wrap" style="padding:0"></div>
   </div>
+</div>
+
+<!-- ══ COUNTERING ══ -->
+<div class="page" id="page-counter">
+  <div class="ph">
+    <div><h2>🧾 Countering</h2><p id="counter-sub">Consolidated PO, preparation, loading and document returns</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="exportCounterCsv()">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="soa-fbar">
+    <div class="soa-fg"><label>Month</label><select id="counter-month" onchange="renderCounterPage()"></select></div>
+    <div class="soa-fg"><label>Year</label><select id="counter-year" onchange="renderCounterPage()"></select></div>
+    <div class="soa-fg"><label>Docs</label>
+      <select id="counter-status" onchange="renderCounterPage()">
+        <option value="">All</option>
+        <option value="pending">Docs outstanding</option>
+        <option value="complete">Docs complete</option>
+        <option value="nosi">No SI number</option>
+      </select></div>
+    <div class="cust-search-wrap" style="max-width:210px">
+      <span class="si">🔍</span>
+      <input type="text" id="counter-search" placeholder="PO, SI or doc number…" oninput="renderCounterPage()">
+    </div>
+  </div>
+
+  <div class="soa-kgrid">
+    <div class="kpi blue">  <div class="kv" id="ctr-k-rows">0</div>   <div class="kl">PO Lines</div></div>
+    <div class="kpi amber"> <div class="kv" id="ctr-k-nosi">0</div>   <div class="kl">Awaiting SI</div></div>
+    <div class="kpi purple"><div class="kv" id="ctr-k-pending">0</div><div class="kl">Docs Outstanding</div></div>
+    <div class="kpi green"> <div class="kv" id="ctr-k-done">0</div>   <div class="kl">Docs Complete</div></div>
+  </div>
+
+  <div id="counter-list"></div>
 </div>
 
 <!-- ══ PREPARATION (checker) ══ -->
@@ -1514,6 +1572,7 @@ function go(page) {
   if (page==='po')        renderPoPage();
   if (page==='slips')     renderSlipsPage();
   if (page==='prep')      renderPrepPage();
+  if (page==='counter')   renderCounterPage();
   if (page==='customers') renderCustomersPage();
   if (page==='drivers')   renderDriversPage();
   if (page==='trucks')    renderTrucksPage();
@@ -3268,6 +3327,225 @@ async function flushQueue() {
 window.addEventListener('online',  () => { toast('Back online — syncing…'); flushQueue(); });
 window.addEventListener('offline', () => { showSyncBar(); });
 setInterval(() => { queueDepth().then(n => { if (n) flushQueue(); }); }, 30000);
+
+// ══════════════════════════════════════════════════
+//  COUNTERING
+//  Joins schedule (PO/doc), checker (who prepared), guard (boxes) and driver
+//  (delivery) into one line per PO. Only the SI number and the document return
+//  state are stored here — everything else is read from its source of truth,
+//  so nothing can drift out of sync.
+// ══════════════════════════════════════════════════
+const SI_COPIES = [
+  { key:'white',  label:'White',  hint:'Customer copy' },
+  { key:'blue',   label:'Blue',   hint:'Office copy'   },
+  { key:'pink',   label:'Pink',   hint:'Warehouse copy'},
+  { key:'yellow', label:'Yellow', hint:'To finance'    }
+];
+
+const counterCol = dateStr => {
+  const [y,m] = String(dateStr||'').split('-');
+  return (y && m) ? `counter_${y}_${m}` : null;
+};
+const counterId = (schedId, dIdx, pIdx) => `${schedId}__${dIdx}__${pIdx}`;
+
+function counterCurrentCol() {
+  const y = document.getElementById('counter-year').value;
+  const m = String(document.getElementById('counter-month').value).padStart(2,'0');
+  return `counter_${y}_${m}`;
+}
+
+function initCounterFilters() {
+  const mSel = document.getElementById('counter-month');
+  const ySel = document.getElementById('counter-year');
+  if (mSel.dataset.init) return;
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const now = new Date();
+  mSel.innerHTML = months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  mSel.value = now.getMonth()+1;
+  const cy = now.getFullYear();
+  ySel.innerHTML = [cy-1, cy, cy+1].map(y=>`<option value="${y}">${y}</option>`).join('');
+  ySel.value = cy;
+  mSel.dataset.init = '1';
+}
+
+// One row per PO, assembled from every stage of the run
+async function buildCounterRows() {
+  const y = parseInt(document.getElementById('counter-year').value);
+  const m = parseInt(document.getElementById('counter-month').value);
+  const pad = n => String(n).padStart(2,'0');
+  const from = `${y}-${pad(m)}-01`;
+  const to   = `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`;
+
+  const [schedules, customers, slips, stored] = await Promise.all([
+    apiGet('schedules'), apiGet('customers'),
+    apiGet(`slips_${y}_${pad(m)}`), apiGet(counterCurrentCol())
+  ]);
+  const cMap    = Object.fromEntries(customers.map(c => [c.id, c]));
+  const slipMap = Object.fromEntries(slips.map(s => [s.id, s]));
+  const ctrMap  = Object.fromEntries(stored.map(r => [r.id, r]));
+
+  const rows = [];
+  for (const s of schedules.filter(x => x.date >= from && x.date <= to)) {
+    const slip = slipMap[s.id];
+    (s.deliveries||[]).forEach((d, dIdx) => {
+      if (!d.cid) return;
+      const drop = slip?.drops?.[dIdx];
+      normPos(d).forEach((p, pIdx) => {
+        const id  = counterId(s.id, dIdx, pIdx);
+        const ctr = ctrMap[id] || {};
+        rows.push({
+          id, date: s.date, plate: s.plate, driver: s.driver,
+          customer: cMap[d.cid]?.name || '?',
+          poNo: p.no, docNo: p.doc,
+          takenOutBy: p.takenOutBy, checkedBy: p.checkedBy, prepared: p.prepared,
+          boxes: slip?.loading?.boxes || '',
+          guard: slip?.loading?.guard || '',
+          delivered: !!drop?.timeOut,
+          receivedBy: drop?.receivingPerson || '',
+          deliveredAt: drop?.timeOut || '',
+          pullout: !!d.pullout,
+          si: ctr.si || '',
+          copies: ctr.copies || {},
+          pulloutDocs: !!ctr.pulloutDocs,
+          docNotes: ctr.docNotes || '',
+          returnedTo: ctr.returnedTo || ''
+        });
+      });
+    });
+  }
+  return rows.sort((a,b) => a.date.localeCompare(b.date) || a.customer.localeCompare(b.customer));
+}
+
+const copiesDone = r => SI_COPIES.every(c => r.copies?.[c.key]) && (!r.pullout || r.pulloutDocs);
+
+async function renderCounterPage() {
+  initCounterFilters();
+  const status = document.getElementById('counter-status').value;
+  const q = document.getElementById('counter-search').value.trim().toLowerCase();
+
+  const all = await buildCounterRows();
+
+  document.getElementById('ctr-k-rows').textContent    = all.length;
+  document.getElementById('ctr-k-nosi').textContent    = all.filter(r => !r.si).length;
+  document.getElementById('ctr-k-pending').textContent = all.filter(r => r.delivered && !copiesDone(r)).length;
+  document.getElementById('ctr-k-done').textContent    = all.filter(r => copiesDone(r)).length;
+
+  let rows = all;
+  if (status === 'pending')  rows = rows.filter(r => !copiesDone(r));
+  if (status === 'complete') rows = rows.filter(r => copiesDone(r));
+  if (status === 'nosi')     rows = rows.filter(r => !r.si);
+  if (q) rows = rows.filter(r =>
+    [r.poNo, r.si, r.docNo, r.customer].some(v => String(v||'').toLowerCase().includes(q)));
+
+  const list = document.getElementById('counter-list');
+  if (!rows.length) {
+    list.innerHTML = `<div class="card"><div class="no-data">Nothing matches for this month.</div></div>`;
+    return;
+  }
+
+  const byDate = {};
+  rows.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+
+  list.innerHTML = Object.keys(byDate).sort().map(date => {
+    const d = new Date(date + 'T00:00:00');
+    return `<div class="card">
+      <div class="ch">
+        <h3>${DAY_LBL(d)} · ${d.toLocaleDateString('en-PH',{month:'long',day:'numeric'})}</h3>
+        <span style="font-size:11px;color:var(--muted)">${byDate[date].length} PO line${byDate[date].length!==1?'s':''}</span>
+      </div>
+      <div style="padding:0">${byDate[date].map(r => counterRow(r)).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function counterRow(r) {
+  const done = copiesDone(r);
+  return `<div class="ctr-row${done?' ctr-done':''}">
+    <div class="ctr-main">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px">${esc(r.customer)}${r.pullout?' <span class="tag" style="background:#ecfeff;color:#0891b2;font-size:10px">↩ pullout</span>':''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">
+          🚛 ${esc(r.plate)} · ${esc(r.driver||'—')}${r.boxes?` · ${esc(String(r.boxes))} boxes`:''}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:12px;font-weight:800;color:var(--accent)">PO ${esc(r.poNo||'—')}</div>
+        ${r.docNo?`<div style="font-size:10px;color:var(--muted)">📄 ${esc(r.docNo)}</div>`:''}
+      </div>
+    </div>
+
+    <div class="ctr-meta">
+      <span>${r.prepared
+        ? `✅ Prepared${r.takenOutBy?` · 🔓 ${esc(r.takenOutBy)}`:''}${r.checkedBy?` · ✓ ${esc(r.checkedBy)}`:''}`
+        : '<span style="color:var(--amber)">Not yet prepared</span>'}</span>
+      <span>${r.delivered
+        ? `🚚 Delivered ${esc(r.deliveredAt)}${r.receivedBy?` · received by ${esc(r.receivedBy)}`:''}`
+        : '<span style="color:var(--muted)">Not delivered</span>'}</span>
+    </div>
+
+    <div class="ctr-docs">
+      <div class="ctr-si">
+        <label>SI number</label>
+        <input type="text" value="${esc(r.si)}" placeholder="SI-…"
+          onchange="saveCounter('${esc(r.id)}','${esc(r.date)}',{si:this.value.trim()})">
+      </div>
+      <div class="ctr-copies">
+        ${SI_COPIES.map(c => `
+          <label class="copy-chip${r.copies?.[c.key]?' on':''}" title="${c.hint}">
+            <input type="checkbox" ${r.copies?.[c.key]?'checked':''}
+              onchange="saveCounterCopy('${esc(r.id)}','${esc(r.date)}','${c.key}',this.checked)">
+            ${c.label}
+          </label>`).join('')}
+        ${r.pullout ? `
+          <label class="copy-chip${r.pulloutDocs?' on':''}" title="Pullout documents returned">
+            <input type="checkbox" ${r.pulloutDocs?'checked':''}
+              onchange="saveCounter('${esc(r.id)}','${esc(r.date)}',{pulloutDocs:this.checked})">
+            ↩ Pullout docs
+          </label>` : ''}
+        ${done ? '<span class="ctr-ok">✓ complete</span>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// Only the SI number and document state live in the countering record
+async function saveCounter(id, date, patch) {
+  const col = counterCol(date);
+  if (!col) { toast('Invalid date','err'); return; }
+  const existing = (await apiGet(col)).find(r => r.id === id) || { id, date, copies:{} };
+  const item = { ...existing, ...patch, id, date, updatedAt:new Date().toISOString() };
+  const res = await apiSave(col, item);
+  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
+  renderCounterPage();
+}
+
+async function saveCounterCopy(id, date, key, on) {
+  const col = counterCol(date);
+  const existing = (await apiGet(col)).find(r => r.id === id) || { id, date, copies:{} };
+  const copies = { ...(existing.copies||{}), [key]: on };
+  await saveCounter(id, date, { copies });
+}
+
+async function exportCounterCsv() {
+  const rows = await buildCounterRows();
+  if (!rows.length) { toast('Nothing to export for this month','err'); return; }
+  const header = ['Date','Customer','Truck','Driver','PO Number','Doc Number','SI Number',
+                  'Prepared','Taken Out By','Checked By','Boxes','Guard',
+                  'Delivered','Received By','White','Blue','Pink','Yellow','Pullout Docs','Docs Complete'];
+  const yn = v => v ? 'Yes' : 'No';
+  const body = rows.map(r => [r.date, r.customer, r.plate, r.driver, r.poNo, r.docNo, r.si,
+    yn(r.prepared), r.takenOutBy, r.checkedBy, r.boxes, r.guard,
+    r.delivered ? r.deliveredAt : 'No', r.receivedBy,
+    yn(r.copies?.white), yn(r.copies?.blue), yn(r.copies?.pink), yn(r.copies?.yellow),
+    r.pullout ? yn(r.pulloutDocs) : 'n/a', yn(copiesDone(r))]);
+  const csv = [header,...body].map(rw => rw.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `SII_Countering_${counterCurrentCol().replace('counter_','')}.csv`;
+  a.click();
+  toast('CSV exported ✓','ok');
+}
 
 // ══════════════════════════════════════════════════
 //  PREPARATION  (checker marks each stop ready)
