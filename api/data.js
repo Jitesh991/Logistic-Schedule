@@ -8,7 +8,7 @@ const VALID_COLS = ['schedules', 'trucks', 'customers', 'drivers', 'holidays', '
 // slips_2026_09) so a single save never has to rewrite a year of records.
 // Keeps every write small and well under Vercel's 4.5 MB request body limit.
 // Photos are never stored here — they are separate blobs, see /api/upload.
-const SHARDED_COL = /^(po|slips)_\d{4}_(0[1-9]|1[0-2])$/;
+const SHARDED_COL = /^(po|slips|counter)_\d{4}_(0[1-9]|1[0-2])$/;
 
 function isValidCol(col) {
   return VALID_COLS.includes(col) || SHARDED_COL.test(col || '');
