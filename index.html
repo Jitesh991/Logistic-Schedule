@@ -335,7 +335,17 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .po-line .po-doc{flex:1;min-width:95px}
 .po-ok{color:var(--green);font-weight:800;font-size:13px;flex-shrink:0;width:14px}
 
-.prep-crew{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.prep-po{border:1px solid var(--border);border-radius:8px;padding:8px 9px;background:var(--surface)}
+.prep-po.on{background:var(--green-lt);border-color:#bbf7d0}
+.prep-po-top{display:flex;align-items:center;gap:9px}
+.prep-po-names{display:flex;gap:6px;margin-top:7px;padding-left:44px}
+.prep-po-names input{flex:1;min-width:0;font-size:12px;padding:5px 8px}
+.prep-po-names input:disabled{background:transparent;border-color:transparent;
+  color:var(--green);font-weight:700;padding-left:0}
+@media(max-width:760px){
+  .prep-po-names{padding-left:0;flex-direction:column}
+}
+.prep-crew{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;align-items:flex-end}
 .prep-crew-f{flex:1;min-width:140px}
 .prep-crew-f label{display:block;font-size:9px;font-weight:800;color:var(--muted);
   text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
@@ -3665,24 +3675,37 @@ async function renderPrepPage() {
                 <input type="text" id="chb-${esc(x.schedId)}-${x.idx}" list="prep-names"
                   value="${esc(prepLastNames().checkedBy)}" placeholder="Who verified it">
               </div>
+              <button type="button" class="btn btn-o btn-xs" style="flex-shrink:0"
+                onclick="applyCrewToRows('${esc(x.schedId)}',${x.idx})">↓ Fill rows</button>
             </div>` : ''}
 
             ${x.pos.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
-              ${x.pos.map((p,pi) => `
-                <label style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;
-                  background:${p.prepared?'var(--green-lt)':'var(--bg)'};cursor:pointer">
-                  <input type="checkbox" ${p.prepared?'checked':''}
-                    onchange="togglePrepared('${esc(x.schedId)}',${x.idx},${pi},this.checked)"
-                    style="width:19px;height:19px;accent-color:var(--green);flex-shrink:0;cursor:pointer">
-                  <span style="font-size:10px;font-weight:800;color:var(--muted);width:16px">${pi+1}</span>
-                  <span style="flex:1;min-width:0;font-size:12px;font-weight:700${p.prepared?';text-decoration:line-through;color:var(--muted)':''}">
-                    ${p.no ? 'PO '+esc(p.no) : '<span style="color:var(--amber);font-weight:600">PO number not recorded</span>'}
-                    ${p.doc ? `<span style="font-weight:500;color:var(--muted)"> · 📄 ${esc(p.doc)}</span>` : ''}
-                  </span>
-                  ${p.prepared ? `<span style="font-size:10px;color:var(--green);white-space:nowrap;text-align:right;line-height:1.5">
-                    ${p.takenOutBy?`🔓 ${esc(p.takenOutBy)}<br>`:''}${p.checkedBy?`✓ ${esc(p.checkedBy)}`:esc(p.preparedBy||'')}
-                  </span>` : ''}
-                </label>`).join('')}
+              ${x.pos.map((p,pi) => {
+                const rid = `${x.schedId}-${x.idx}-${pi}`;
+                return `<div class="prep-po${p.prepared?' on':''}">
+                  <div class="prep-po-top">
+                    <input type="checkbox" ${p.prepared?'checked':''}
+                      onchange="togglePrepared('${esc(x.schedId)}',${x.idx},${pi},this.checked)"
+                      style="width:19px;height:19px;accent-color:var(--green);flex-shrink:0;cursor:pointer">
+                    <span style="font-size:10px;font-weight:800;color:var(--muted);width:16px">${pi+1}</span>
+                    <span style="flex:1;min-width:0;font-size:12px;font-weight:700${p.prepared?';color:var(--green)':''}">
+                      ${p.no ? 'PO '+esc(p.no) : '<span style="color:var(--amber);font-weight:600">PO number not recorded</span>'}
+                      ${p.doc ? `<span style="font-weight:500;color:var(--muted)"> · 📄 ${esc(p.doc)}</span>` : ''}
+                    </span>
+                    ${p.prepared && p.preparedAt ? `<span style="font-size:10px;color:var(--muted);white-space:nowrap">
+                      ${esc(new Date(p.preparedAt).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}))}
+                    </span>` : ''}
+                  </div>
+                  <div class="prep-po-names">
+                    <input type="text" id="tob-${esc(rid)}" list="prep-names" ${p.prepared?'disabled':''}
+                      value="${esc(p.takenOutBy || (p.prepared ? '' : prepLastNames().takenOutBy))}"
+                      placeholder="Taken out by">
+                    <input type="text" id="chb-${esc(rid)}" list="prep-names" ${p.prepared?'disabled':''}
+                      value="${esc(p.checkedBy || (p.prepared ? '' : prepLastNames().checkedBy))}"
+                      placeholder="Checked by">
+                  </div>
+                </div>`;
+              }).join('')}
             </div>` : `<div style="font-size:11px;color:var(--amber);margin-top:6px">No POs listed on this stop</div>`}
           </div>`;
         }).join('')}
@@ -3721,16 +3744,36 @@ function prepRememberNames(tob, chb) {
   try { localStorage.setItem('sii_tob', tob); localStorage.setItem('sii_chb', chb); } catch(e) {}
 }
 
-// Read the two name boxes for a stop; blocks the tick if either is empty
-function prepCrew(schedId, idx) {
-  const tob = (document.getElementById(`tob-${schedId}-${idx}`)?.value || '').trim();
-  const chb = (document.getElementById(`chb-${schedId}-${idx}`)?.value || '').trim();
+// Names for one specific PO row. Each PO carries its own pair, so two pickers
+// splitting a stop are both recorded against the POs they actually handled.
+function prepCrewFor(schedId, idx, poIdx) {
+  const tob = (document.getElementById(`tob-${schedId}-${idx}-${poIdx}`)?.value || '').trim();
+  const chb = (document.getElementById(`chb-${schedId}-${idx}-${poIdx}`)?.value || '').trim();
   if (!tob || !chb) {
-    toast('Enter both "Taken out by" and "Checked by" first','err');
+    toast(`PO ${poIdx+1}: enter both "Taken out by" and "Checked by"`,'err');
     return null;
   }
   prepRememberNames(tob, chb);
   return { tob, chb };
+}
+
+// Copy the stop-level pair into every row that isn't already prepared
+function applyCrewToRows(schedId, idx) {
+  const tob = (document.getElementById(`tob-${schedId}-${idx}`)?.value || '').trim();
+  const chb = (document.getElementById(`chb-${schedId}-${idx}`)?.value || '').trim();
+  if (!tob && !chb) { toast('Type the names above first','err'); return; }
+  let n = 0;
+  document.querySelectorAll(`[id^="tob-${schedId}-${idx}-"]`).forEach(el => {
+    if (el.disabled) return;
+    if (tob) el.value = tob;
+    n++;
+  });
+  document.querySelectorAll(`[id^="chb-${schedId}-${idx}-"]`).forEach(el => {
+    if (el.disabled) return;
+    if (chb) el.value = chb;
+  });
+  if (tob && chb) prepRememberNames(tob, chb);
+  toast(n ? `Filled ${n} row${n!==1?'s':''}` : 'All rows already prepared', n ? 'ok' : 'err');
 }
 
 const prepStamp = (on, crew) => ({
@@ -3744,23 +3787,39 @@ const prepStamp = (on, crew) => ({
 async function togglePrepared(schedId, idx, poIdx, on) {
   let crew = { tob:'', chb:'' };
   if (on) {
-    crew = prepCrew(schedId, idx);
+    crew = prepCrewFor(schedId, idx, poIdx);
     if (!crew) { renderPrepPage(); return; }   // re-render to untick the box
   }
   await writePrepared(schedId, idx,
     pos => { if (pos[poIdx]) Object.assign(pos[poIdx], prepStamp(on, crew)); },
-    on ? `PO prepared ✓ — ${crew.tob} / ${crew.chb}` : 'PO unmarked');
+    on ? `PO ${poIdx+1} prepared ✓ — ${crew.tob} / ${crew.chb}` : `PO ${poIdx+1} unmarked`);
 }
 
 async function toggleAllPos(schedId, idx, on) {
-  let crew = { tob:'', chb:'' };
-  if (on) {
-    crew = prepCrew(schedId, idx);
-    if (!crew) return;
+  if (!on) {
+    await writePrepared(schedId, idx,
+      pos => pos.forEach(p => Object.assign(p, prepStamp(false, { tob:'', chb:'' }))),
+      'All POs unmarked');
+    return;
   }
+  // Each row is stamped with its own names, so collect them all before writing
+  // and refuse the whole batch if any row is missing a name
+  const rows = document.querySelectorAll(`[id^="tob-${schedId}-${idx}-"]`);
+  const crews = [];
+  for (let i = 0; i < rows.length; i++) {
+    const tob = (document.getElementById(`tob-${schedId}-${idx}-${i}`)?.value || '').trim();
+    const chb = (document.getElementById(`chb-${schedId}-${idx}-${i}`)?.value || '').trim();
+    const already = document.getElementById(`tob-${schedId}-${idx}-${i}`)?.disabled;
+    if (already) { crews[i] = null; continue; }        // keep what's stored
+    if (!tob || !chb) { toast(`PO ${i+1} is missing a name — use “Fill rows”`,'err'); return; }
+    crews[i] = { tob, chb };
+  }
+  const last = crews.filter(Boolean).pop();
+  if (last) prepRememberNames(last.tob, last.chb);
+
   await writePrepared(schedId, idx,
-    pos => pos.forEach(p => Object.assign(p, prepStamp(on, crew))),
-    on ? `All POs prepared ✓ — ${crew.tob} / ${crew.chb}` : 'All POs unmarked');
+    pos => pos.forEach((p,i) => { if (crews[i]) Object.assign(p, prepStamp(true, crews[i])); }),
+    'All POs prepared ✓');
 }
 
 // ══════════════════════════════════════════════════
