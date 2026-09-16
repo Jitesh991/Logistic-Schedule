@@ -1450,6 +1450,25 @@ function applyRole(role) {
   }
 }
 
+// Synchronously re-expand the open slip (and drop) straight after the list is
+// rebuilt. Used on every render, not just after a reload.
+function reopenAfterRender() {
+  let id = null, dropIdx = null;
+  try {
+    id = localStorage.getItem('sii_open_slip');
+    dropIdx = localStorage.getItem('sii_open_drop');
+  } catch(e) {}
+  if (!id) return;
+  const body = document.getElementById('slipbody-'+id);
+  if (!body) return;
+  body.style.display = '';
+  renderSlipBody(id);
+  if (dropIdx !== null && dropIdx !== '') {
+    const drop = document.getElementById(`drop-${id}-${dropIdx}`);
+    if (drop) { drop.style.display = ''; initSigPad(id, parseInt(dropIdx)); }
+  }
+}
+
 // Re-expand the slip the user had open, so a camera-triggered reload lands
 // them back where they were instead of at the top of the list
 async function restoreOpenSlip() {
@@ -4079,6 +4098,10 @@ async function renderSlipsPage() {
     </div>`;
   }).join('');
 
+  // Re-open whatever was expanded. Without this, any background refresh — the
+  // offline queue flushing after a photo upload, for instance — silently
+  // collapses the slip the driver is working in.
+  reopenAfterRender();
   showSyncBar();
 }
 
@@ -4102,7 +4125,7 @@ function toggleSlip(id) {
   const body = document.getElementById('slipbody-'+id);
   if (body.style.display !== 'none') {
     body.style.display = 'none';
-    try { localStorage.removeItem('sii_open_slip'); } catch(e) {}
+    try { localStorage.removeItem('sii_open_slip'); localStorage.removeItem('sii_open_drop'); } catch(e) {}
     return;
   }
   body.style.display = '';
@@ -4279,6 +4302,10 @@ function toggleDrop(slipId, i) {
   const el = document.getElementById(`drop-${slipId}-${i}`);
   const open = el.style.display !== 'none';
   el.style.display = open ? 'none' : '';
+  try {
+    if (open) localStorage.removeItem('sii_open_drop');
+    else      localStorage.setItem('sii_open_drop', String(i));
+  } catch(e) {}
   if (!open) initSigPad(slipId, i);
 }
 
@@ -4330,15 +4357,35 @@ function grabSig(slipId, i) {
 
 // ── Photo capture: resize before upload ──
 function pickPhoto(slipId, where, dropIdx) {
+  // Remember where we are BEFORE the camera opens. Phones routinely discard the
+  // browser tab to free memory for the camera, so the app reloads on return and
+  // this is the only thing that survives.
+  try {
+    localStorage.setItem('sii_page', 'slips');
+    localStorage.setItem('sii_open_slip', slipId);
+    if (where === 'drop') localStorage.setItem('sii_open_drop', String(dropIdx));
+    else localStorage.removeItem('sii_open_drop');
+  } catch(e) {}
+
+  // The input must be in the document — a detached one is unreliable on iOS
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = 'image/*'; inp.capture = 'environment';
+  inp.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px';
+  document.body.appendChild(inp);
+
+  const cleanup = () => { try { inp.remove(); } catch(e) {} };
+
   inp.onchange = async () => {
-    const file = inp.files[0]; if (!file) return;
+    const file = inp.files[0];
+    cleanup();
+    if (!file) return;
     try {
       const dataUrl = await shrinkImage(file, 1280, 0.7);
       await attachPhoto(slipId, where, dropIdx, dataUrl);
     } catch(e) { toast('Could not read that photo: ' + e.message, 'err'); }
   };
+  // If the picker is dismissed without choosing, drop the stray input
+  inp.oncancel = cleanup;
   inp.click();
 }
 
