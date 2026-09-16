@@ -237,6 +237,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   letter-spacing:.5px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .delivery-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
 .delivery-row{display:flex;gap:6px;align-items:center;background:var(--bg);border-radius:8px;padding:6px 8px}
+.po-item-row{display:flex;gap:6px;align-items:center;background:var(--bg);border-radius:8px;padding:6px 8px}
 .delivery-row select{flex:1;font-size:12px;padding:5px 8px;background:var(--surface)}
 .delivery-row input[type=number]{width:80px;font-size:12px;padding:5px 8px;text-align:center;flex-shrink:0}
 .delivery-row .po-label{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap;flex-shrink:0}
@@ -1872,22 +1873,31 @@ function setDeliveries(arr) {
   arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false, { pos: normPos(d) }));
 }
 function getDeliveries() {
-  return [...document.querySelectorAll('.delivery-row')].map(row => {
+  // Scoped to the schedule modal's own list. A document-wide query also picked
+  // up the Purchase Orders modal's line-item rows, which have no <select>, and
+  // the resulting TypeError silently aborted the whole save.
+  const wrap = document.getElementById('delivery-list');
+  if (!wrap) return [];
+  return [...wrap.querySelectorAll('.delivery-row')].map(row => {
+    const sel = row.querySelector('select');
+    if (!sel) return null;
     // One entry per PO, each with its own doc number and prepared state
     const pos = [...row.querySelectorAll('.po-line')].map(l => ({
-      no:         l.querySelector('.po-no').value.trim(),
-      doc:        l.querySelector('.po-doc').value.trim(),
+      no:         (l.querySelector('.po-no')?.value  || '').trim(),
+      doc:        (l.querySelector('.po-doc')?.value || '').trim(),
       prepared:   l.dataset.prepared === '1',
       preparedBy: l.dataset.preparedBy || '',
-      preparedAt: l.dataset.preparedAt || ''
+      preparedAt: l.dataset.preparedAt || '',
+      takenOutBy: l.dataset.takenOutBy || '',
+      checkedBy:  l.dataset.checkedBy  || ''
     }));
     return {
-      cid:     row.querySelector('select').value,
-      po:      parseInt(row.querySelector('.po-count').value) || 0,
+      cid:     sel.value,
+      po:      parseInt(row.querySelector('.po-count')?.value) || 0,
       pos,
       pullout: row.querySelector('.pullout-cb')?.checked || false
     };
-  }).filter(d => d.cid);
+  }).filter(d => d && d.cid);
 }
 
 // Normalise a delivery's PO list. Handles the current array shape, the earlier
@@ -1919,7 +1929,9 @@ function getRowPos(row) {
     doc:        l.querySelector('.po-doc').value,
     prepared:   l.dataset.prepared === '1',
     preparedBy: l.dataset.preparedBy || '',
-    preparedAt: l.dataset.preparedAt || ''
+    preparedAt: l.dataset.preparedAt || '',
+    takenOutBy: l.dataset.takenOutBy || '',
+    checkedBy:  l.dataset.checkedBy  || ''
   }));
 }
 
@@ -1938,6 +1950,8 @@ function syncPoLines(row, count, existing) {
     line.dataset.prepared   = src.prepared ? '1' : '';
     line.dataset.preparedBy = src.preparedBy || '';
     line.dataset.preparedAt = src.preparedAt || '';
+    line.dataset.takenOutBy = src.takenOutBy || '';
+    line.dataset.checkedBy  = src.checkedBy  || '';
     line.innerHTML = `
       <span class="po-idx">${i+1}</span>
       <input type="text" class="po-no"  value="${esc(src.no||'')}"  placeholder="PO number">
@@ -4545,7 +4559,7 @@ async function poQuickStatus(id, status) {
 function addPoItemRow(item = {}) {
   const wrap = document.getElementById('po-items');
   const row = document.createElement('div');
-  row.className = 'delivery-row po-item-row';
+  row.className = 'po-item-row';
   row.innerHTML = `
     <input type="text" class="pi-code" placeholder="Item code" value="${esc(item.code||'')}" style="flex:1;font-size:12px;padding:5px 8px">
     <input type="text" class="pi-name" placeholder="Description" value="${esc(item.name||'')}" style="flex:1.4;font-size:12px;padding:5px 8px">
