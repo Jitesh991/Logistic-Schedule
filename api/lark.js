@@ -89,6 +89,35 @@ async function uploadImage(buffer) {
   return json.data.image_key;
 }
 
+// Interactive card. The client supplies { header, elements }; the image, when
+// this chat gets one, is inserted as the first element so it sits inside the
+// card rather than arriving as a separate message.
+function buildCard(spec, imageKey) {
+  const elements = [...(spec.elements || [])];
+  if (imageKey) {
+    elements.unshift({
+      tag: 'img',
+      img_key: imageKey,
+      // fit_horizontal renders it at full card width; without it Lark shows a
+      // small thumbnail, which is useless for a schedule grid
+      mode: 'fit_horizontal',
+      preview: true,
+      alt: { tag: 'plain_text', content: spec.header?.title || 'Schedule' }
+    });
+  }
+  return {
+    msg_type: 'interactive',
+    card: {
+      config: { wide_screen_mode: true },
+      header: {
+        template: spec.header?.template || 'blue',
+        title: { tag: 'plain_text', content: spec.header?.title || 'SII Logistics' }
+      },
+      elements
+    }
+  };
+}
+
 // One bubble containing the image with the text underneath it.
 // Lark's "post" type takes an array of rows; each row is an array of tags.
 function buildPost(imageKey, text, title) {
@@ -193,6 +222,7 @@ module.exports = async function handler(req, res) {
 
   const fallbacks = req.body.fallbackMessages || {};
   const titles    = req.body.titles || {};
+  const cards     = req.body.cards || {};
 
   const sent = [], failed = [];
   for (const t of targets) {
@@ -204,11 +234,20 @@ module.exports = async function handler(req, res) {
       let text = messages[t];
       if (wantsImage.includes(t) && !imageKey && fallbacks[t]) text = fallbacks[t];
 
-      if (withImage) {
+      if (cards[t]) {
+        try {
+          await postHook(HOOKS[t], buildCard(cards[t], withImage ? imageKey : null));
+        } catch (e) {
+          // Older tenants may reject card schemas — degrade to plain text so the
+          // information still arrives rather than nothing at all
+          console.error(`card failed for ${t}, falling back:`, e.message);
+          if (text) await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
+          if (withImage) await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
+        }
+      } else if (withImage) {
         try {
           await postHook(HOOKS[t], buildPost(imageKey, text, titles[t]));
         } catch (e) {
-          // Some tenants restrict rich posts — degrade to two plain messages
           console.error(`post failed for ${t}, falling back:`, e.message);
           if (text) await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
           await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
