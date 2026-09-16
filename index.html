@@ -1310,7 +1310,32 @@ function applyRole(role) {
   if (field) {
     document.getElementById('btn-png').style.display = 'none';
     go('slips');
+    restoreOpenSlip();
+    return;
   }
+  // Return to whichever page was open before a reload (camera, refresh, crash)
+  let last = null;
+  try { last = localStorage.getItem('sii_page'); } catch(e) {}
+  if (last && document.getElementById('page-'+last)) {
+    go(last);
+    if (last === 'slips') restoreOpenSlip();
+  }
+}
+
+// Re-expand the slip the user had open, so a camera-triggered reload lands
+// them back where they were instead of at the top of the list
+async function restoreOpenSlip() {
+  let id = null;
+  try { id = localStorage.getItem('sii_open_slip'); } catch(e) {}
+  if (!id) return;
+  for (let i = 0; i < 20 && !document.getElementById('slipbody-'+id); i++) {
+    await new Promise(r => setTimeout(r, 150));
+  }
+  const body = document.getElementById('slipbody-'+id);
+  if (!body) return;
+  body.style.display = '';
+  renderSlipBody(id);
+  document.getElementById('slip-'+id)?.scrollIntoView({ block:'start' });
 }
 
 async function fillDriverSelect(selected) {
@@ -1437,6 +1462,9 @@ function go(page) {
   document.getElementById('page-'+page).classList.add('active');
   const nav = document.getElementById('nav-'+page);
   if (nav) nav.classList.add('active');
+  // Remembered so that a phone killing the tab to open the camera doesn't
+  // dump the driver back on the home page when it reloads
+  try { localStorage.setItem('sii_page', page); } catch(e) {}
   if (page==='cal')       renderCalendar();
   if (page==='dash')      renderDashboard();
   if (page==='po')        renderPoPage();
@@ -3226,8 +3254,13 @@ async function renderSlipsPage() {
 
 function toggleSlip(id) {
   const body = document.getElementById('slipbody-'+id);
-  if (body.style.display !== 'none') { body.style.display = 'none'; return; }
+  if (body.style.display !== 'none') {
+    body.style.display = 'none';
+    try { localStorage.removeItem('sii_open_slip'); } catch(e) {}
+    return;
+  }
   body.style.display = '';
+  try { localStorage.setItem('sii_open_slip', id); } catch(e) {}
   renderSlipBody(id);
 }
 
@@ -3248,21 +3281,25 @@ function renderSlipBody(id) {
   const html = `
     <!-- Loading / guard -->
     <div class="slip-sec">
-      <h4>🛡 Loading check ${loading.timeOut ? '<span style="color:var(--green)">✓ done</span>' : ''}</h4>
+      <h4>🛡 Loading check ${loaded ? '<span style="color:var(--green)">✓ done</span>' : ''}</h4>
       <div class="slip-grid">
         ${slipF(`g-guard-${id}`,'Guard on duty', loading.guard || (role==='guard'? (currentUser.name||'') : ''),'text',ro(canGuard))}
         ${slipF(`g-boxes-${id}`,'Boxes counted', loading.boxes,'number',ro(canGuard))}
         ${slipF(`g-in-${id}`,'Time in', loading.timeIn,'time',ro(canGuard))}
         ${slipF(`g-out-${id}`,'Time out', loading.timeOut,'time',ro(canGuard))}
         ${slipF(`s-kmout-${id}`,'KM out', s.kmOut,'number',ro(canGuard))}
-        ${slipF(`s-gas-${id}`,'Gas', s.gas,'text',ro(canGuard))}
-        ${slipF(`s-vanload-${id}`,'Van load', s.vanLoad,'text',ro(canGuard))}
+        <div class="slip-f"><label>Van load</label>
+          <select id="s-vanload-${id}" ${ro(canGuard)}>
+            ${['','1/4','1/2','3/4','Full'].map(v =>
+              `<option value="${v}"${(s.vanLoad||'')===v?' selected':''}>${v||'—'}</option>`).join('')}
+          </select></div>
+        ${slipF(`s-loadedby-${id}`,'Loaded by', s.loadedBy,'text',ro(canGuard))}
         ${slipF(`g-notes-${id}`,'Remarks', loading.notes,'text',ro(canGuard))}
       </div>
       <div class="photo-strip" id="gphotos-${id}">${photoStrip(loading.photos)}</div>
       ${canGuard ? `<div style="display:flex;gap:7px;margin-top:9px">
-        <button class="btn btn-o btn-sm" onclick="pickPhoto('${esc(id)}','loading')">📷 Add photo</button>
-        <button class="btn btn-p btn-sm" onclick="saveLoading('${esc(id)}')">Save loading</button>
+        <button type="button" class="btn btn-o btn-sm" onclick="pickPhoto('${esc(id)}','loading')">📷 Add photo</button>
+        <button type="button" class="btn btn-p btn-sm" onclick="saveLoading('${esc(id)}')">Save loading</button>
       </div>` : ''}
     </div>
 
@@ -3276,15 +3313,12 @@ function renderSlipBody(id) {
       ${(s.timeOut || s.timeIn) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px">
         ${s.timeOut ? `Departed ${esc(s.timeOut)}` : ''}${s.timeOut && s.timeIn ? ' · ' : ''}${s.timeIn ? `Back ${esc(s.timeIn)}` : ''}
       </div>` : ''}
-      ${canDriver ? `<div style="margin-top:10px">
-        ${!loaded
-          ? `<div class="slip-wait">⏳ Waiting for the guard to finish the loading check</div>`
-          : s.status === 'loaded' || s.status === 'pending'
-            ? `<button class="big-btn" onclick="startJourney('${esc(id)}')">▶ Start journey</button>`
-            : s.status === 'transit'
-              ? `<button class="big-btn green" onclick="endJourney('${esc(id)}')">🏁 Complete journey — back at warehouse</button>`
-              : `<div style="text-align:center;font-size:12px;color:var(--green);font-weight:700">✓ Trip completed${s.timeIn?` at ${esc(s.timeIn)}`:''}</div>`}
-      </div>` : ''}
+      ${canDriver && !loaded
+        ? `<div class="slip-wait" style="margin-top:10px">⏳ Waiting for the guard to finish the loading check</div>`
+        : ''}
+      ${canDriver && loaded && (s.status === 'loaded' || s.status === 'pending')
+        ? `<div style="margin-top:10px"><button type="button" class="big-btn" onclick="startJourney('${esc(id)}')">▶ Start journey</button></div>`
+        : ''}
     </div>
 
     <!-- Drops -->
@@ -3292,21 +3326,17 @@ function renderSlipBody(id) {
       <h4>📍 Drops</h4>
       ${!loaded && canDriver && role === 'driver'
         ? `<div class="slip-wait">Drops unlock once loading is checked</div>`
-        : (s.drops.map((d,i) => renderDrop(id, d, i, canDriver && loaded)).join('') ||
+        : (s.drops.map((d,i) => renderDrop(id, d, i, canDriver && loaded, s)).join('') ||
            '<div style="font-size:12px;color:var(--muted)">No drops on this schedule.</div>')}
     </div>
 
-    <!-- Sign-off -->
+    <!-- Complete journey sits after the drops, where it belongs in the run -->
+    ${canDriver && loaded && (s.status === 'transit' || s.status === 'done') ? `
     <div class="slip-sec">
-      <h4>✍️ Sign-off</h4>
-      <div class="slip-grid">
-        ${slipF(`s-released-${id}`,'Released by', s.releasedBy,'text',ro(canGuard))}
-        ${slipF(`s-checked-${id}`,'Checked by', s.checkedBy,'text',ro(canGuard||canDriver))}
-      </div>
-      <div style="display:flex;gap:7px;margin-top:9px">
-        <button class="btn btn-p btn-sm" onclick="saveSlipHeader('${esc(id)}')">Save slip</button>
-      </div>
-    </div>`;
+      ${s.status === 'transit'
+        ? `<button type="button" class="big-btn green" onclick="endJourney('${esc(id)}')">🏁 Complete journey — back at warehouse</button>`
+        : `<div style="text-align:center;font-size:13px;color:var(--green);font-weight:700">✓ Trip completed${s.timeIn?` at ${esc(s.timeIn)}`:''}</div>`}
+    </div>` : ''}`;
 
   document.getElementById('slipbody-'+id).innerHTML = html;
 }
@@ -3321,9 +3351,21 @@ function photoStrip(photos) {
   }).join('');
 }
 
-function renderDrop(slipId, d, i, canEdit) {
+// Small block showing where the GPS fix landed
+function locBlock(loc, label) {
+  if (!loc) return `<div style="font-size:11px;color:var(--muted)">${label}: not captured yet</div>`;
+  return `<div style="font-size:11px;color:var(--text);background:var(--green-lt);
+            border:1px solid #bbf7d0;border-radius:7px;padding:7px 9px;margin-bottom:8px">
+      📍 <strong>${label} captured</strong> · ±${Math.round(loc.accuracy||0)} m
+      <a href="https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}"
+         target="_blank" style="margin-left:6px;color:var(--accent);font-weight:700">View</a>
+    </div>`;
+}
+
+function renderDrop(slipId, d, i, canEdit, slip) {
   const done = !!d.timeOut;
   const dis  = canEdit ? '' : 'disabled';
+  const total = slip?.drops?.length || 0;
   return `<div class="drop-row">
     <div class="drop-hdr" onclick="toggleDrop('${esc(slipId)}',${i})">
       <div class="drop-no${done?' done':''}">${done?'✓':i+1}</div>
@@ -3333,8 +3375,21 @@ function renderDrop(slipId, d, i, canEdit) {
       </div>
     </div>
     <div class="drop-body" id="drop-${esc(slipId)}-${i}" style="display:none">
-      ${d.address ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">📍 ${esc(d.address)}
-        <button class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
+
+      <!-- who is on this run, then which drop this is -->
+      <div style="background:var(--bg);border-radius:8px;padding:9px 11px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700">👤 ${esc(slip?.driver || '—')}${slip?.helper?` &nbsp;·&nbsp; 🧍 ${esc(slip.helper)}`:''}</div>
+        <div style="font-size:12px;color:var(--accent);font-weight:800;margin-top:4px">
+          Drop ${i+1} of ${total} — ${esc(d.customer)}
+        </div>
+        ${d.address ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📍 ${esc(d.address)}
+          <button type="button" class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
+      </div>
+
+      ${canEdit ? `<button type="button" class="big-btn" style="margin-bottom:10px"
+          onclick="stampDrop('${esc(slipId)}',${i})">📍 Send current location</button>` : ''}
+      ${locBlock(d.location, 'Arrival location')}
+
       <div class="slip-grid">
         ${slipF(`d-qty-${slipId}-${i}`,'Qty', d.qty,'text',dis)}
         ${slipF(`d-in-${slipId}-${i}`,'Time in', d.timeIn,'time',dis)}
@@ -3346,24 +3401,23 @@ function renderDrop(slipId, d, i, canEdit) {
         <input type="text" id="d-rem-${slipId}-${i}" value="${esc(d.remarks||'')}" ${dis}>
       </div>
 
-      <div style="margin-top:10px">
-        <label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px">Signature</label>
+      <div class="photo-strip" id="dphotos-${esc(slipId)}-${i}">${photoStrip(d.photos)}</div>
+      ${canEdit ? `<button type="button" class="btn btn-o btn-sm" style="margin-top:7px"
+          onclick="pickPhoto('${esc(slipId)}','drop',${i})">📷 Add photo</button>` : ''}
+
+      <div style="margin-top:12px">
+        <label style="display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px">Signature of receiving person</label>
         ${d.signature
           ? `<img src="${esc(d.signature)}" style="max-height:90px;border:1px solid var(--border);border-radius:8px;background:#fff">
-             ${canEdit?`<button class="btn btn-o btn-xs" style="margin-left:7px" onclick="clearSig('${esc(slipId)}',${i})">Redo</button>`:''}`
+             ${canEdit?`<button type="button" class="btn btn-o btn-xs" style="margin-left:7px" onclick="clearSig('${esc(slipId)}',${i})">Redo</button>`:''}`
           : canEdit
             ? `<canvas class="sig-pad" id="sig-${esc(slipId)}-${i}"></canvas>
-               <button class="btn btn-o btn-xs" style="margin-top:5px" onclick="wipeSig('${esc(slipId)}',${i})">Clear</button>`
+               <button type="button" class="btn btn-o btn-xs" style="margin-top:5px" onclick="wipeSig('${esc(slipId)}',${i})">Clear</button>`
             : `<div style="font-size:12px;color:var(--muted)">Not signed</div>`}
       </div>
 
-      <div class="photo-strip" id="dphotos-${esc(slipId)}-${i}">${photoStrip(d.photos)}</div>
-
-      ${canEdit ? `<div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn btn-o btn-sm" onclick="stampDrop('${esc(slipId)}',${i},'in')">⏱ Arrived</button>
-        <button class="btn btn-o btn-sm" onclick="pickPhoto('${esc(slipId)}','drop',${i})">📷 Photo</button>
-        <button class="btn btn-p btn-sm" style="margin-left:auto" onclick="completeDrop('${esc(slipId)}',${i})">✓ Complete drop</button>
-      </div>` : ''}
+      ${canEdit ? `<button type="button" class="big-btn green" style="margin-top:12px"
+          onclick="completeDrop('${esc(slipId)}',${i})">✓ Complete drop — stamps time out</button>` : ''}
     </div>
   </div>`;
 }
@@ -3521,37 +3575,51 @@ async function saveLoading(id) {
     guard: val(`g-guard-${id}`), boxes: val(`g-boxes-${id}`),
     timeIn: val(`g-in-${id}`), timeOut: val(`g-out-${id}`),
     notes: val(`g-notes-${id}`), photos: s.loading?.photos || [] };
-  s.kmOut   = val(`s-kmout-${id}`);
-  s.gas     = val(`s-gas-${id}`);
-  s.vanLoad = val(`s-vanload-${id}`);
+  s.kmOut    = val(`s-kmout-${id}`);
+  s.vanLoad  = val(`s-vanload-${id}`);
+  s.loadedBy = val(`s-loadedby-${id}`);
   if (s.loading.timeOut && s.status === 'pending') s.status = 'loaded';
   if (await persistSlip(s)) { toast('Loading saved ✓','ok'); renderSlipsPage(); }
 }
 
-async function saveSlipHeader(id) {
-  const s = _slipCache[id]; if (!s) return;
-  s.driver     = val(`s-driver-${id}`);
-  s.helper     = val(`s-helper-${id}`);
-  s.releasedBy = val(`s-released-${id}`);
-  s.checkedBy  = val(`s-checked-${id}`);
-  if (await persistSlip(s)) toast('Slip saved ✓','ok');
+// Driver and helper are captured whenever the journey starts — there is no
+// separate save button, which is what made the old one confusing.
+function captureCrew(id, s) {
+  const dv = val(`s-driver-${id}`), hp = val(`s-helper-${id}`);
+  if (dv) s.driver = dv;
+  if (hp) s.helper = hp;
 }
 
 async function startJourney(id) {
   const s = _slipCache[id]; if (!s) return;
   if (!s.loading?.timeOut) { toast('The guard has not completed the loading check yet','err'); return; }
-  s.timeOut = s.timeOut || nowTime();
-  s.status  = 'transit';
-  if (await persistSlip(s)) { toast('Journey started · ' + s.timeOut,'ok'); renderSlipsPage(); }
+  captureCrew(id, s);
+  toast('Getting location…');
+  const fix = await getPosition();
+  s.timeOut      = s.timeOut || nowTime();
+  s.status       = 'transit';
+  s.locationOut  = fix || null;
+  if (await persistSlip(s)) {
+    await sendTripEvent(s, 'start', fix);
+    toast('Journey started · ' + s.timeOut,'ok');
+    renderSlipsPage();
+  }
 }
 
 async function endJourney(id) {
   const s = _slipCache[id]; if (!s) return;
   const open = s.drops.filter(d => !d.timeOut).length;
   const finish = async () => {
-    s.timeIn = s.timeIn || nowTime();
-    s.status = 'done';
-    if (await persistSlip(s)) { toast('Journey completed · ' + s.timeIn,'ok'); renderSlipsPage(); }
+    toast('Getting location…');
+    const fix = await getPosition();
+    s.timeIn     = s.timeIn || nowTime();
+    s.status     = 'done';
+    s.locationIn = fix || null;
+    if (await persistSlip(s)) {
+      await sendTripEvent(s, 'end', fix);
+      toast('Journey completed · ' + s.timeIn,'ok');
+      renderSlipsPage();
+    }
   };
   if (open) confirm2(`${open} drop${open!==1?'s':''} not completed`,'End the journey anyway?', finish);
   else await finish();
@@ -3572,8 +3640,24 @@ function getPosition(timeoutMs = 12000) {
   });
 }
 
+// Journey start / end announcement
+async function sendTripEvent(slip, event, fix) {
+  await postCheckin({
+    event,
+    customer: slip.plate,
+    plate: slip.plate,
+    driver: slip.driver,
+    helpers: slip.helper || '',
+    lat: fix?.lat, lng: fix?.lng, accuracy: fix?.accuracy,
+    at: fix?.at || new Date().toISOString(),
+    boxes: slip.loading?.boxes,
+    vanLoad: slip.vanLoad
+  });
+}
+
 // Post a sign-in / sign-out card. Queued if offline so it still lands later.
 async function sendCheckin(slip, drop, event, fix) {
+  const idx = slip.drops.indexOf(drop);
   const payload = {
     event,
     customer: drop.customer,
@@ -3582,11 +3666,26 @@ async function sendCheckin(slip, drop, event, fix) {
     helpers: slip.helper || '',
     lat: fix?.lat, lng: fix?.lng, accuracy: fix?.accuracy,
     at: fix?.at || new Date().toISOString(),
+    dropNo: idx + 1, dropTotal: slip.drops.length,
     qty: drop.qty,
     receivingPerson: drop.receivingPerson,
     remarks: drop.remarks,
+    timeIn: drop.timeIn, timeOut: drop.timeOut,
     photos: (drop.photos||[]).length
   };
+  // On sign-out, send the images so they render full size in the chat.
+  // Uploaded photos are passed as URLs — their base64 preview is stripped once
+  // stored, precisely so the slip JSON stays small. Ones still queued locally
+  // are sent as data, since no URL exists for them yet.
+  if (event === 'out') {
+    const ph = (drop.photos||[]).slice(0, 4);
+    payload.photoUrls = ph.map(p => p.url).filter(Boolean);
+    payload.photoData = ph.filter(p => !p.url).map(p => p.preview).filter(Boolean);
+  }
+  await postCheckin(payload);
+}
+
+async function postCheckin(payload) {
   if (!navigator.onLine) {
     await idbAdd({ kind:'checkin', payload });
     showSyncBar();
