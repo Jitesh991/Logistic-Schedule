@@ -117,11 +117,15 @@ module.exports = async function handler(req, res) {
     dropNo, dropTotal, timeIn, timeOut, boxes, vanLoad
   } = req.body || {};
 
+  // Header leads with the truck and driver — in a shared chat that's what tells
+  // you whose message this is at a glance. The customer is in the first line.
+  const who = [plate, driver].filter(Boolean).join(' · ') || 'SII Logistics';
+
   const EVENTS = {
-    in:    { title: s => `${s} — Sign in`,   head: 'Arrived',           template: 'blue'      },
-    out:   { title: s => `${s} — Sign out`,  head: 'Departed',          template: 'green'     },
-    start: { title: () => 'Journey started', head: 'Left the warehouse',template: 'turquoise' },
-    end:   { title: () => 'Journey completed',head:'Back at warehouse', template: 'grey'      }
+    in:    { title: () => `${who} — Sign in`,          head: 'Arrived',            template: 'blue'      },
+    out:   { title: () => `${who} — Sign out`,         head: 'Departed',           template: 'green'     },
+    start: { title: () => `${who} — Journey started`,  head: 'Left the warehouse', template: 'turquoise' },
+    end:   { title: () => `${who} — Journey completed`,head: 'Back at warehouse',  template: 'grey'      }
   };
   const cfg = EVENTS[event];
   if (!cfg) return res.status(400).json({ error: "event must be in, out, start or end" });
@@ -215,7 +219,7 @@ module.exports = async function handler(req, res) {
         config: { wide_screen_mode:true },
         header: {
           template: cfg.template,
-          title: { tag:'plain_text', content: cfg.title(customer || 'Stop') }
+          title: { tag:'plain_text', content: cfg.title() }
         },
         elements: el
       }
