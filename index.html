@@ -326,6 +326,14 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 /* Numeric column alignment */
 .num { text-align: right }
 
+.po-lines{display:flex;flex-direction:column;gap:4px;padding:6px 0 2px 0}
+.po-line{display:flex;gap:6px;align-items:center}
+.po-idx{width:20px;flex-shrink:0;font-size:10px;font-weight:800;color:var(--muted);text-align:right}
+.po-line input{font-size:12px;padding:5px 8px}
+.po-line .po-no{flex:1.2;min-width:110px}
+.po-line .po-doc{flex:1;min-width:95px}
+.po-ok{color:var(--green);font-weight:800;font-size:13px;flex-shrink:0;width:14px}
+
 /* ── Driver Slip ── */
 .slip-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
   box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
@@ -1745,23 +1753,21 @@ async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <select style="flex:1;min-width:120px;font-size:12px;padding:5px 8px">${opts}</select>
       <span class="po-label">POs:</span>
-      <input type="number" min="0" value="${esc(String(po))}" placeholder="0" style="width:70px;font-size:12px;padding:5px 8px;text-align:center">
+      <input type="number" class="po-count" min="0" max="50" value="${esc(String(po))}" placeholder="0" style="width:70px;font-size:12px;padding:5px 8px;text-align:center">
       <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;transition:all .1s" class="pullout-lbl">
         <input type="checkbox" class="pullout-cb" style="accent-color:#0891b2;width:13px;height:13px" ${pullout?'checked':''}> ↩ Pullout
       </label>
       <button class="btn btn-o btn-xs" onclick="this.closest('.delivery-row').remove()" style="flex-shrink:0">✕</button>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <input type="text" class="po-nums" value="${esc(extra.poNumbers||'')}"
-        placeholder="PO number(s) — comma separated"
-        style="flex:2;min-width:150px;font-size:12px;padding:5px 8px">
-      <input type="text" class="doc-num" value="${esc(extra.docNumber||'')}"
-        placeholder="Doc number"
-        style="flex:1;min-width:110px;font-size:12px;padding:5px 8px">
-    </div>
-    ${extra.prepared ? `<div style="font-size:10px;color:var(--green);font-weight:700">✓ Prepared${extra.preparedBy?` by ${esc(extra.preparedBy)}`:''}</div>` : ''}
+    <div class="po-lines"></div>
     <div class="deliv-hint"></div>`;
   document.getElementById('delivery-list').appendChild(row);
+
+  // Build the PO rows now, and keep them in step as the count is edited
+  syncPoLines(row, po, extra.pos);
+  row.querySelector('.po-count').addEventListener('input', e => {
+    syncPoLines(row, e.target.value, getRowPos(row));
+  });
 
   // Pullout checkbox style toggle
   const pcb = row.querySelector('.pullout-cb');
@@ -1797,23 +1803,81 @@ async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
 
 function setDeliveries(arr) {
   document.getElementById('delivery-list').innerHTML = '';
-  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false, {
-    poNumbers: d.poNumbers, docNumber: d.docNumber,
-    prepared: d.prepared, preparedBy: d.preparedBy, preparedAt: d.preparedAt
-  }));
+  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false, { pos: normPos(d) }));
 }
 function getDeliveries() {
-  return [...document.querySelectorAll('.delivery-row')].map(row => ({
-    cid:       row.querySelector('select').value,
-    po:        parseInt(row.querySelector('input[type=number]').value)||0,
-    poNumbers: (row.querySelector('.po-nums')?.value || '').trim(),
-    docNumber: (row.querySelector('.doc-num')?.value || '').trim(),
-    pullout:   row.querySelector('.pullout-cb')?.checked || false,
-    // Preparation state belongs to the delivery and is set by the checker
-    prepared:   row.dataset.prepared === '1',
-    preparedBy: row.dataset.preparedBy || '',
-    preparedAt: row.dataset.preparedAt || ''
-  })).filter(d => d.cid);
+  return [...document.querySelectorAll('.delivery-row')].map(row => {
+    // One entry per PO, each with its own doc number and prepared state
+    const pos = [...row.querySelectorAll('.po-line')].map(l => ({
+      no:         l.querySelector('.po-no').value.trim(),
+      doc:        l.querySelector('.po-doc').value.trim(),
+      prepared:   l.dataset.prepared === '1',
+      preparedBy: l.dataset.preparedBy || '',
+      preparedAt: l.dataset.preparedAt || ''
+    }));
+    return {
+      cid:     row.querySelector('select').value,
+      po:      parseInt(row.querySelector('.po-count').value) || 0,
+      pos,
+      pullout: row.querySelector('.pullout-cb')?.checked || false
+    };
+  }).filter(d => d.cid);
+}
+
+// Normalise a delivery's PO list. Handles the current array shape, the earlier
+// comma-separated string, and deliveries saved before either existed — so old
+// schedules keep working instead of losing their PO numbers.
+function normPos(d) {
+  if (Array.isArray(d.pos) && d.pos.length) {
+    return d.pos.map(p => ({ no:p.no||'', doc:p.doc||'',
+      prepared:!!p.prepared, preparedBy:p.preparedBy||'', preparedAt:p.preparedAt||'' }));
+  }
+  const nums = String(d.poNumbers || '').split(',').map(s => s.trim()).filter(Boolean);
+  const count = Math.max(parseInt(d.po) || 0, nums.length);
+  return Array.from({ length: count }, (_, i) => ({
+    no: nums[i] || '',
+    doc: i === 0 ? (d.docNumber || '') : '',
+    prepared:   !!d.prepared,                 // old stop-level flag applied to all
+    preparedBy: d.preparedBy || '',
+    preparedAt: d.preparedAt || ''
+  }));
+}
+
+// Read the PO rows currently in a delivery row, so a count change can rebuild
+// them without losing anything already typed
+function getRowPos(row) {
+  return [...row.querySelectorAll('.po-line')].map(l => ({
+    no:         l.querySelector('.po-no').value,
+    doc:        l.querySelector('.po-doc').value,
+    prepared:   l.dataset.prepared === '1',
+    preparedBy: l.dataset.preparedBy || '',
+    preparedAt: l.dataset.preparedAt || ''
+  }));
+}
+
+// Grow or shrink the PO rows to match the count, keeping what's typed
+function syncPoLines(row, count, existing) {
+  const wrap = row.querySelector('.po-lines');
+  const have = [...wrap.querySelectorAll('.po-line')];
+  const n = Math.max(0, Math.min(50, parseInt(count) || 0));
+
+  for (let i = have.length; i > n; i--) have[i-1].remove();
+
+  for (let i = have.length; i < n; i++) {
+    const src = (existing && existing[i]) || {};
+    const line = document.createElement('div');
+    line.className = 'po-line';
+    line.dataset.prepared   = src.prepared ? '1' : '';
+    line.dataset.preparedBy = src.preparedBy || '';
+    line.dataset.preparedAt = src.preparedAt || '';
+    line.innerHTML = `
+      <span class="po-idx">${i+1}</span>
+      <input type="text" class="po-no"  value="${esc(src.no||'')}"  placeholder="PO number">
+      <input type="text" class="po-doc" value="${esc(src.doc||'')}" placeholder="Doc number">
+      ${src.prepared ? '<span class="po-ok" title="Prepared">✓</span>' : ''}`;
+    wrap.appendChild(line);
+  }
+  wrap.style.display = n ? '' : 'none';
 }
 
 function setHelpers(arr) { document.getElementById('helpers-list').innerHTML=''; arr.forEach(v => addHelperRow(v)); }
@@ -3223,24 +3287,29 @@ async function renderPrepPage() {
     .filter(s => s.date >= ws && s.date <= we)
     .sort((a,b) => a.date.localeCompare(b.date) || a.plate.localeCompare(b.plate));
 
-  // Flatten to one entry per stop — that's the unit a checker works in
+  // Flatten to one entry per stop; each carries its own list of POs
   const stops = [];
   for (const s of scheds) {
     (s.deliveries||[]).forEach((d, idx) => {
       if (!d.cid) return;
+      const pos = normPos(d);
       stops.push({ schedId:s.id, idx, date:s.date, plate:s.plate,
-                   customer: cMap[d.cid]?.name || '?', ...d });
+                   customer: cMap[d.cid]?.name || '?', pullout:d.pullout,
+                   pos, done: pos.length > 0 && pos.every(p => p.prepared) });
     });
   }
 
-  const pending = stops.filter(x => !x.prepared);
-  document.getElementById('prep-k-pending').textContent = pending.length;
-  document.getElementById('prep-k-done').textContent    = stops.length - pending.length;
-  document.getElementById('prep-k-pos').textContent     = pending.reduce((n,x)=>n+(parseInt(x.po)||0),0);
-  document.getElementById('prep-k-custs').textContent   = new Set(pending.map(x=>x.customer)).size;
+  const allPos     = stops.flatMap(x => x.pos);
+  const pendingPos = allPos.filter(p => !p.prepared);
+  const pendingStops = stops.filter(x => !x.done);
 
-  const shown = filter === 'pending' ? pending
-              : filter === 'done'    ? stops.filter(x => x.prepared)
+  document.getElementById('prep-k-pending').textContent = pendingStops.length;
+  document.getElementById('prep-k-done').textContent    = stops.length - pendingStops.length;
+  document.getElementById('prep-k-pos').textContent     = pendingPos.length;
+  document.getElementById('prep-k-custs').textContent   = new Set(pendingStops.map(x=>x.customer)).size;
+
+  const shown = filter === 'pending' ? pendingStops
+              : filter === 'done'    ? stops.filter(x => x.done)
               : stops;
 
   const list = document.getElementById('prep-list');
@@ -3261,23 +3330,36 @@ async function renderPrepPage() {
         <span style="font-size:11px;color:var(--muted)">${byDate[date].length} stop${byDate[date].length!==1?'s':''}</span></div>
       <div style="padding:0">
         ${byDate[date].map(x => {
-          const pos = (x.poNumbers||'').split(',').map(v=>v.trim()).filter(Boolean);
-          return `<div style="display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid #f0f2f7">
-            <input type="checkbox" ${x.prepared?'checked':''}
-              onchange="togglePrepared('${esc(x.schedId)}',${x.idx},this.checked)"
-              style="width:20px;height:20px;accent-color:var(--green);margin-top:2px;flex-shrink:0;cursor:pointer">
-            <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:13px${x.prepared?';text-decoration:line-through;color:var(--muted)':''}">
-                ${esc(x.customer)}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">
-                🚛 ${esc(x.plate)} · ${parseInt(x.po)||0} PO${(parseInt(x.po)||0)!==1?'s':''}${x.pullout?' · ↩ pullout':''}
+          const readyCount = x.pos.filter(p=>p.prepared).length;
+          return `<div style="padding:11px 14px;border-bottom:1px solid #f0f2f7">
+            <div style="display:flex;align-items:center;gap:9px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:13px${x.done?';color:var(--green)':''}">
+                  ${x.done?'✓ ':''}${esc(x.customer)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                  🚛 ${esc(x.plate)} · ${readyCount}/${x.pos.length} prepared${x.pullout?' · ↩ pullout':''}
+                </div>
               </div>
-              ${pos.length ? `<div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">
-                ${pos.map(p=>`<span class="tag" style="background:var(--alt);color:var(--accent);font-size:10px">PO ${esc(p)}</span>`).join('')}
-              </div>` : `<div style="font-size:10px;color:var(--amber);margin-top:4px">No PO number recorded</div>`}
-              ${x.docNumber ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📄 Doc ${esc(x.docNumber)}</div>` : ''}
-              ${x.prepared && x.preparedBy ? `<div style="font-size:10px;color:var(--green);margin-top:4px">✓ ${esc(x.preparedBy)}${x.preparedAt?` · ${esc(new Date(x.preparedAt).toLocaleString('en-PH',{dateStyle:'short',timeStyle:'short'}))}`:''}</div>` : ''}
+              ${x.pos.length ? `<button type="button" class="btn btn-o btn-xs"
+                onclick="toggleAllPos('${esc(x.schedId)}',${x.idx},${x.done?'false':'true'})">
+                ${x.done?'Undo all':'Mark all'}</button>` : ''}
             </div>
+
+            ${x.pos.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
+              ${x.pos.map((p,pi) => `
+                <label style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;
+                  background:${p.prepared?'var(--green-lt)':'var(--bg)'};cursor:pointer">
+                  <input type="checkbox" ${p.prepared?'checked':''}
+                    onchange="togglePrepared('${esc(x.schedId)}',${x.idx},${pi},this.checked)"
+                    style="width:19px;height:19px;accent-color:var(--green);flex-shrink:0;cursor:pointer">
+                  <span style="font-size:10px;font-weight:800;color:var(--muted);width:16px">${pi+1}</span>
+                  <span style="flex:1;min-width:0;font-size:12px;font-weight:700${p.prepared?';text-decoration:line-through;color:var(--muted)':''}">
+                    ${p.no ? 'PO '+esc(p.no) : '<span style="color:var(--amber);font-weight:600">PO number not recorded</span>'}
+                    ${p.doc ? `<span style="font-weight:500;color:var(--muted)"> · 📄 ${esc(p.doc)}</span>` : ''}
+                  </span>
+                  ${p.prepared && p.preparedBy ? `<span style="font-size:10px;color:var(--green);white-space:nowrap">${esc(p.preparedBy)}</span>` : ''}
+                </label>`).join('')}
+            </div>` : `<div style="font-size:11px;color:var(--amber);margin-top:6px">No POs listed on this stop</div>`}
           </div>`;
         }).join('')}
       </div>
@@ -3285,19 +3367,40 @@ async function renderPrepPage() {
   }).join('');
 }
 
-async function togglePrepared(schedId, idx, on) {
+// Write prepared state onto individual POs. Re-reads the schedule first so a
+// tick never overwrites an edit someone else made in the meantime.
+async function writePrepared(schedId, idx, mutate, msg) {
+  delete cache['schedules'];
   const schedules = await apiGet('schedules');
   const s = schedules.find(x => x.id === schedId);
-  if (!s || !s.deliveries?.[idx]) { toast('Could not find that stop','err'); return; }
+  if (!s || !s.deliveries?.[idx]) { toast('Could not find that stop','err'); renderPrepPage(); return; }
 
-  s.deliveries[idx].prepared   = on;
-  s.deliveries[idx].preparedBy = on ? (currentUser?.name || currentUser?.username || '') : '';
-  s.deliveries[idx].preparedAt = on ? new Date().toISOString() : '';
+  const d = s.deliveries[idx];
+  d.pos = normPos(d);          // migrate in place if this stop predates per-PO
+  mutate(d.pos);
 
   const res = await apiSave('schedules', s);
   if (!res?.ok && !res?.data) { toast('Could not save — try again','err'); renderPrepPage(); return; }
-  toast(on ? 'Marked prepared ✓' : 'Unmarked', 'ok');
+  toast(msg, 'ok');
   renderPrepPage();
+}
+
+const prepStamp = on => ({
+  prepared: on,
+  preparedBy: on ? (currentUser?.name || currentUser?.username || '') : '',
+  preparedAt: on ? new Date().toISOString() : ''
+});
+
+async function togglePrepared(schedId, idx, poIdx, on) {
+  await writePrepared(schedId, idx,
+    pos => { if (pos[poIdx]) Object.assign(pos[poIdx], prepStamp(on)); },
+    on ? 'PO marked prepared ✓' : 'PO unmarked');
+}
+
+async function toggleAllPos(schedId, idx, on) {
+  await writePrepared(schedId, idx,
+    pos => pos.forEach(p => Object.assign(p, prepStamp(on))),
+    on ? 'All POs marked prepared ✓' : 'All POs unmarked');
 }
 
 // ══════════════════════════════════════════════════
@@ -3334,8 +3437,7 @@ function slipFromSchedule(s, cMap) {
       customer: cMap[d.cid]?.name || '?',
       address:  cMap[d.cid]?.address || '',
       window:   cMap[d.cid]?.time || '',
-      poNumbers: d.poNumbers || '',
-      docNumber: d.docNumber || '',
+      pos: normPos(d),
       qty: d.po || '',
       timeIn:'', timeOut:'', receivingPerson:'', signature:'', photos:[], remarks:''
     })),
@@ -3575,11 +3677,13 @@ function renderDrop(slipId, d, i, canEdit, slip) {
         </div>
         ${d.address ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📍 ${esc(d.address)}
           <button type="button" class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
-        ${d.poNumbers ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
-          ${d.poNumbers.split(',').map(v=>v.trim()).filter(Boolean)
-            .map(p=>`<span class="tag" style="background:var(--alt);color:var(--accent);font-size:10px">PO ${esc(p)}</span>`).join('')}
+        ${(d.pos||[]).length ? `<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+          ${d.pos.map(p => `<div style="font-size:11px">
+            <span class="tag" style="background:var(--alt);color:var(--accent);font-size:10px">PO ${esc(p.no||'—')}</span>
+            ${p.doc?`<span style="color:var(--muted);margin-left:5px">📄 ${esc(p.doc)}</span>`:''}
+            ${p.prepared?'<span style="color:var(--green);margin-left:5px">✓ prepared</span>':''}
+          </div>`).join('')}
         </div>` : ''}
-        ${d.docNumber ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📄 Doc ${esc(d.docNumber)}</div>` : ''}
       </div>
 
       ${canEdit ? `<button type="button" class="big-btn" style="margin-bottom:10px"
