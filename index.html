@@ -448,6 +448,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <button class="ni role-office" id="nav-po"          onclick="go('po')">       <span>📋</span> Purchase Orders</button>
   <div class="ns role-field">Operations</div>
   <button class="ni role-field"  id="nav-slips"       onclick="go('slips')">    <span>🚚</span> Driver Slip</button>
+  <button class="ni role-field"  id="nav-prep"        onclick="go('prep')">     <span>✅</span> Preparation</button>
   <div class="ns role-office">Setup</div>
   <button class="ni role-setup" id="nav-customers" onclick="go('customers')"><span>🏢</span> Customers</button>
   <button class="ni role-setup" id="nav-drivers"   onclick="go('drivers')">  <span>👤</span> Drivers</button>
@@ -566,6 +567,30 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   </div>
 </div>
 
+<!-- ══ PREPARATION (checker) ══ -->
+<div class="page" id="page-prep">
+  <div class="ph">
+    <div><h2>✅ Preparation</h2><p id="prep-sub">Orders to prepare for delivery</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="shiftPrepWeek(-1)">← Prev</button>
+      <button class="btn btn-o btn-sm" onclick="prepThisWeek()">This week</button>
+      <button class="btn btn-o btn-sm" onclick="shiftPrepWeek(1)">Next →</button>
+      <select id="prep-filter" onchange="renderPrepPage()" style="width:auto;font-size:12px;padding:6px 10px">
+        <option value="pending">Pending only</option>
+        <option value="all">All</option>
+        <option value="done">Prepared</option>
+      </select>
+    </div>
+  </div>
+  <div class="soa-kgrid">
+    <div class="kpi amber"> <div class="kv" id="prep-k-pending">0</div><div class="kl">Stops Pending</div></div>
+    <div class="kpi green"> <div class="kv" id="prep-k-done">0</div>   <div class="kl">Prepared</div></div>
+    <div class="kpi blue">  <div class="kv" id="prep-k-pos">0</div>    <div class="kl">POs to Prepare</div></div>
+    <div class="kpi purple"><div class="kv" id="prep-k-custs">0</div>  <div class="kl">Customers</div></div>
+  </div>
+  <div id="prep-list"></div>
+</div>
+
 <!-- ══ DRIVER SLIP ══ -->
 <div class="page" id="page-slips">
   <div class="ph">
@@ -576,6 +601,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
         <option value="tomorrow">Tomorrow</option>
         <option value="week">This week</option>
         <option value="all">All open</option>
+        <option value="completed">Completed</option>
       </select>
       <button class="btn btn-o btn-sm" onclick="renderSlipsPage()">↻ Refresh</button>
     </div>
@@ -1154,6 +1180,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
         <option value="viewer">HR Viewer — read-only schedule &amp; dashboard</option>
         <option value="driver">Driver — own trips and driver slip only</option>
         <option value="guard">Guard — loading checks and KM/time only</option>
+        <option value="checker">Checker — prepares orders for delivery</option>
       </select>
     </div>
     <div class="field" id="f-udriver-wrap" style="display:none">
@@ -1279,7 +1306,7 @@ async function showApp() {
   document.getElementById('user-avatar').textContent = (currentUser.name||currentUser.username).charAt(0).toUpperCase();
   document.getElementById('user-name').textContent   = currentUser.name || currentUser.username;
   const rb = document.getElementById('role-badge');
-  const ROLE_LABEL = { viewer:'HR Viewer', driver:'Driver', guard:'Guard', admin:'Admin', editor:'Editor' };
+  const ROLE_LABEL = { viewer:'HR Viewer', driver:'Driver', guard:'Guard', checker:'Checker', admin:'Admin', editor:'Editor' };
   rb.textContent = ROLE_LABEL[currentUser.role] || currentUser.role;
   rb.className   = 'role-badge ' + currentUser.role;
   // Apply role-based UI
@@ -1292,7 +1319,7 @@ async function showApp() {
 
 // Field roles see only the driver slip — everything else is hidden from them.
 // This is UI-level only: the API still serves any collection to a valid login.
-const FIELD_ROLES = ['driver','guard'];
+const FIELD_ROLES = ['driver','guard','checker'];
 const isField = r => FIELD_ROLES.includes(r);
 
 function applyRole(role) {
@@ -1309,6 +1336,8 @@ function applyRole(role) {
 
   if (field) {
     document.getElementById('btn-png').style.display = 'none';
+    // Checkers prepare orders; drivers and guards work the slip
+    if (role === 'checker') { go('prep'); return; }
     go('slips');
     restoreOpenSlip();
     return;
@@ -1469,6 +1498,7 @@ function go(page) {
   if (page==='dash')      renderDashboard();
   if (page==='po')        renderPoPage();
   if (page==='slips')     renderSlipsPage();
+  if (page==='prep')      renderPrepPage();
   if (page==='customers') renderCustomersPage();
   if (page==='drivers')   renderDriversPage();
   if (page==='trucks')    renderTrucksPage();
@@ -1699,13 +1729,18 @@ async function populateSchedDropdowns(plate, driver) {
   if (driver) document.getElementById('f-driver-sel').value = driver;
 }
 
-async function addDeliveryRow(cid='', po='', pullout=false) {
+async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
   const customers = await apiGet('customers');
   const opts = '<option value="">— Select customer —</option>' +
     customers.map(c => `<option value="${c.id}" ${c.id===cid?'selected':''}>${esc(c.name)}</option>`).join('');
   const row = document.createElement('div');
   row.className = 'delivery-row';
   row.style.cssText = 'flex-direction:column;gap:4px';
+  // Preparation state rides along on the row so editing a schedule never
+  // silently un-ticks what the checker already prepared
+  row.dataset.prepared   = extra.prepared ? '1' : '';
+  row.dataset.preparedBy = extra.preparedBy || '';
+  row.dataset.preparedAt = extra.preparedAt || '';
   row.innerHTML = `
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <select style="flex:1;min-width:120px;font-size:12px;padding:5px 8px">${opts}</select>
@@ -1716,6 +1751,15 @@ async function addDeliveryRow(cid='', po='', pullout=false) {
       </label>
       <button class="btn btn-o btn-xs" onclick="this.closest('.delivery-row').remove()" style="flex-shrink:0">✕</button>
     </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <input type="text" class="po-nums" value="${esc(extra.poNumbers||'')}"
+        placeholder="PO number(s) — comma separated"
+        style="flex:2;min-width:150px;font-size:12px;padding:5px 8px">
+      <input type="text" class="doc-num" value="${esc(extra.docNumber||'')}"
+        placeholder="Doc number"
+        style="flex:1;min-width:110px;font-size:12px;padding:5px 8px">
+    </div>
+    ${extra.prepared ? `<div style="font-size:10px;color:var(--green);font-weight:700">✓ Prepared${extra.preparedBy?` by ${esc(extra.preparedBy)}`:''}</div>` : ''}
     <div class="deliv-hint"></div>`;
   document.getElementById('delivery-list').appendChild(row);
 
@@ -1753,13 +1797,22 @@ async function addDeliveryRow(cid='', po='', pullout=false) {
 
 function setDeliveries(arr) {
   document.getElementById('delivery-list').innerHTML = '';
-  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false));
+  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false, {
+    poNumbers: d.poNumbers, docNumber: d.docNumber,
+    prepared: d.prepared, preparedBy: d.preparedBy, preparedAt: d.preparedAt
+  }));
 }
 function getDeliveries() {
   return [...document.querySelectorAll('.delivery-row')].map(row => ({
-    cid:     row.querySelector('select').value,
-    po:      parseInt(row.querySelector('input[type=number]').value)||0,
-    pullout: row.querySelector('.pullout-cb')?.checked || false
+    cid:       row.querySelector('select').value,
+    po:        parseInt(row.querySelector('input[type=number]').value)||0,
+    poNumbers: (row.querySelector('.po-nums')?.value || '').trim(),
+    docNumber: (row.querySelector('.doc-num')?.value || '').trim(),
+    pullout:   row.querySelector('.pullout-cb')?.checked || false,
+    // Preparation state belongs to the delivery and is set by the checker
+    prepared:   row.dataset.prepared === '1',
+    preparedBy: row.dataset.preparedBy || '',
+    preparedAt: row.dataset.preparedAt || ''
   })).filter(d => d.cid);
 }
 
@@ -3144,6 +3197,110 @@ window.addEventListener('offline', () => { showSyncBar(); });
 setInterval(() => { queueDepth().then(n => { if (n) flushQueue(); }); }, 30000);
 
 // ══════════════════════════════════════════════════
+//  PREPARATION  (checker marks each stop ready)
+// ══════════════════════════════════════════════════
+let _prepWeek = null;   // Monday of the week being viewed
+
+function prepThisWeek() { _prepWeek = getMonday(new Date()); renderPrepPage(); }
+function shiftPrepWeek(dir) {
+  _prepWeek = addDays(_prepWeek || getMonday(new Date()), dir*7);
+  renderPrepPage();
+}
+
+async function renderPrepPage() {
+  if (!_prepWeek) _prepWeek = getMonday(new Date());
+  const days = Array.from({length:7}, (_,i) => addDays(_prepWeek, i));
+  const ws = dStr(days[0]), we = dStr(days[6]);
+  const filter = document.getElementById('prep-filter').value;
+
+  document.getElementById('prep-sub').textContent =
+    `${fmtMD(days[0])} – ${fmtMD(days[6])} ${days[6].getFullYear()}`;
+
+  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+
+  const scheds = schedules
+    .filter(s => s.date >= ws && s.date <= we)
+    .sort((a,b) => a.date.localeCompare(b.date) || a.plate.localeCompare(b.plate));
+
+  // Flatten to one entry per stop — that's the unit a checker works in
+  const stops = [];
+  for (const s of scheds) {
+    (s.deliveries||[]).forEach((d, idx) => {
+      if (!d.cid) return;
+      stops.push({ schedId:s.id, idx, date:s.date, plate:s.plate,
+                   customer: cMap[d.cid]?.name || '?', ...d });
+    });
+  }
+
+  const pending = stops.filter(x => !x.prepared);
+  document.getElementById('prep-k-pending').textContent = pending.length;
+  document.getElementById('prep-k-done').textContent    = stops.length - pending.length;
+  document.getElementById('prep-k-pos').textContent     = pending.reduce((n,x)=>n+(parseInt(x.po)||0),0);
+  document.getElementById('prep-k-custs').textContent   = new Set(pending.map(x=>x.customer)).size;
+
+  const shown = filter === 'pending' ? pending
+              : filter === 'done'    ? stops.filter(x => x.prepared)
+              : stops;
+
+  const list = document.getElementById('prep-list');
+  if (!shown.length) {
+    list.innerHTML = `<div class="card"><div class="no-data">${
+      filter==='pending' ? 'Nothing left to prepare this week 🎉' : 'No deliveries this week.'}</div></div>`;
+    return;
+  }
+
+  // Group by day so the checker works the week in order
+  const byDate = {};
+  shown.forEach(x => { (byDate[x.date] = byDate[x.date] || []).push(x); });
+
+  list.innerHTML = Object.keys(byDate).sort().map(date => {
+    const d = new Date(date + 'T00:00:00');
+    return `<div class="card">
+      <div class="ch"><h3>${DAY_LBL(d)} · ${d.toLocaleDateString('en-PH',{month:'long',day:'numeric'})}</h3>
+        <span style="font-size:11px;color:var(--muted)">${byDate[date].length} stop${byDate[date].length!==1?'s':''}</span></div>
+      <div style="padding:0">
+        ${byDate[date].map(x => {
+          const pos = (x.poNumbers||'').split(',').map(v=>v.trim()).filter(Boolean);
+          return `<div style="display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid #f0f2f7">
+            <input type="checkbox" ${x.prepared?'checked':''}
+              onchange="togglePrepared('${esc(x.schedId)}',${x.idx},this.checked)"
+              style="width:20px;height:20px;accent-color:var(--green);margin-top:2px;flex-shrink:0;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:13px${x.prepared?';text-decoration:line-through;color:var(--muted)':''}">
+                ${esc(x.customer)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                🚛 ${esc(x.plate)} · ${parseInt(x.po)||0} PO${(parseInt(x.po)||0)!==1?'s':''}${x.pullout?' · ↩ pullout':''}
+              </div>
+              ${pos.length ? `<div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">
+                ${pos.map(p=>`<span class="tag" style="background:var(--alt);color:var(--accent);font-size:10px">PO ${esc(p)}</span>`).join('')}
+              </div>` : `<div style="font-size:10px;color:var(--amber);margin-top:4px">No PO number recorded</div>`}
+              ${x.docNumber ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📄 Doc ${esc(x.docNumber)}</div>` : ''}
+              ${x.prepared && x.preparedBy ? `<div style="font-size:10px;color:var(--green);margin-top:4px">✓ ${esc(x.preparedBy)}${x.preparedAt?` · ${esc(new Date(x.preparedAt).toLocaleString('en-PH',{dateStyle:'short',timeStyle:'short'}))}`:''}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function togglePrepared(schedId, idx, on) {
+  const schedules = await apiGet('schedules');
+  const s = schedules.find(x => x.id === schedId);
+  if (!s || !s.deliveries?.[idx]) { toast('Could not find that stop','err'); return; }
+
+  s.deliveries[idx].prepared   = on;
+  s.deliveries[idx].preparedBy = on ? (currentUser?.name || currentUser?.username || '') : '';
+  s.deliveries[idx].preparedAt = on ? new Date().toISOString() : '';
+
+  const res = await apiSave('schedules', s);
+  if (!res?.ok && !res?.data) { toast('Could not save — try again','err'); renderPrepPage(); return; }
+  toast(on ? 'Marked prepared ✓' : 'Unmarked', 'ok');
+  renderPrepPage();
+}
+
+// ══════════════════════════════════════════════════
 //  DRIVER SLIP
 // ══════════════════════════════════════════════════
 const SLIP_STATUS = {
@@ -3177,6 +3334,8 @@ function slipFromSchedule(s, cMap) {
       customer: cMap[d.cid]?.name || '?',
       address:  cMap[d.cid]?.address || '',
       window:   cMap[d.cid]?.time || '',
+      poNumbers: d.poNumbers || '',
+      docNumber: d.docNumber || '',
       qty: d.po || '',
       timeIn:'', timeOut:'', receivingPerson:'', signature:'', photos:[], remarks:''
     })),
@@ -3195,13 +3354,16 @@ async function renderSlipsPage() {
 
   // Which dates are we showing?
   let from, to;
+  const onlyDone = when === 'completed';
   if (when === 'today')         { from = to = dStr(today); }
   else if (when === 'tomorrow') { from = to = dStr(addDays(today,1)); }
   else if (when === 'week')     { const d = getMonday(today); from = dStr(d); to = dStr(addDays(d,6)); }
+  else if (onlyDone)            { from = dStr(addDays(today,-90)); to = dStr(addDays(today,1)); }
   else                          { from = dStr(addDays(today,-30)); to = dStr(addDays(today,14)); }
 
   document.getElementById('slips-sub').textContent =
-    role === 'driver' ? 'Your assigned trips'
+    onlyDone ? 'Completed deliveries'
+    : role === 'driver' ? 'Your assigned trips'
     : role === 'guard' ? 'Loading checks'
     : 'All driver slips';
 
@@ -3225,17 +3387,28 @@ async function renderSlipsPage() {
   _slipCache = {};
   const list = document.getElementById('slips-list');
 
-  if (!scheds.length) {
-    list.innerHTML = `<div class="card"><div class="no-data">No trips for this period.</div></div>`;
+  // Build the view models first so completed can be filtered on real status
+  let rows = scheds.map(s => {
+    const slip = stored[s.id] || slipFromSchedule(s, cMap);
+    _slipCache[slip.id] = slip;
+    return { s, slip, saved: !!stored[s.id] };
+  });
+  if (onlyDone) rows = rows.filter(r => r.slip.status === 'done');
+  else          rows = rows.filter(r => r.slip.status !== 'done' || when !== 'all');
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="card"><div class="no-data">${
+      onlyDone ? 'No completed deliveries in the last 90 days.' : 'No trips for this period.'}</div></div>`;
+    showSyncBar();
     return;
   }
 
-  list.innerHTML = scheds.map(s => {
-    const slip = stored[s.id] || slipFromSchedule(s, cMap);
-    _slipCache[slip.id] = slip;
+  const canDelete = ['admin','editor'].includes(role);
+
+  list.innerHTML = rows.map(({ slip, saved }) => {
     const st = SLIP_STATUS[slip.status] || SLIP_STATUS.pending;
     const done = slip.drops.filter(d => d.timeOut).length;
-    const d = new Date(s.date + 'T00:00:00');
+    const d = new Date(slip.date + 'T00:00:00');
     return `<div class="slip-card" id="slip-${esc(slip.id)}">
       <div class="slip-card-hdr" onclick="toggleSlip('${esc(slip.id)}')">
         <div class="slip-when">${DAY_LBL(d)}</div>
@@ -3244,12 +3417,30 @@ async function renderSlipsPage() {
           <div class="slip-sub">${esc(slip.driver || 'no driver')} · ${slip.drops.length} drop${slip.drops.length!==1?'s':''}${done?` · ${done} done`:''}</div>
         </div>
         <span class="slip-stat ${st.cls}">${st.label}</span>
+        ${canDelete && saved ? `<button type="button" class="btn btn-o btn-xs" style="margin-left:8px"
+          title="Delete this slip" onclick="event.stopPropagation();deleteSlip('${esc(slip.id)}','${esc(slip.date)}')">🗑</button>` : ''}
       </div>
       <div id="slipbody-${esc(slip.id)}" style="display:none"></div>
     </div>`;
   }).join('');
 
   showSyncBar();
+}
+
+// Delete a stored slip. The schedule stays — this only clears the recorded
+// trip, so a test run or a mistake can be wiped and started again.
+function deleteSlip(id, date) {
+  const col = slipCol(date);
+  if (!col) { toast('Slip has no valid date','err'); return; }
+  confirm2('Delete this driver slip?',
+           'Loading checks, drop records, signatures and photo links are removed. The schedule itself stays.',
+    async () => {
+      const res = await apiDelete(col, id);
+      if (!res?.ok && !res?.data) { toast('Delete failed','err'); return; }
+      try { localStorage.removeItem('sii_open_slip'); } catch(e) {}
+      toast('Slip deleted','ok');
+      renderSlipsPage();
+    });
 }
 
 function toggleSlip(id) {
@@ -3384,6 +3575,11 @@ function renderDrop(slipId, d, i, canEdit, slip) {
         </div>
         ${d.address ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📍 ${esc(d.address)}
           <button type="button" class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
+        ${d.poNumbers ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
+          ${d.poNumbers.split(',').map(v=>v.trim()).filter(Boolean)
+            .map(p=>`<span class="tag" style="background:var(--alt);color:var(--accent);font-size:10px">PO ${esc(p)}</span>`).join('')}
+        </div>` : ''}
+        ${d.docNumber ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📄 Doc ${esc(d.docNumber)}</div>` : ''}
       </div>
 
       ${canEdit ? `<button type="button" class="big-btn" style="margin-bottom:10px"
