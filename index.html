@@ -370,12 +370,31 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   padding:8px 14px;font-size:12px;font-weight:700;text-align:center;z-index:400;display:none}
 #sync-bar.show{display:block}
 
+.slip-wait{background:var(--amber-lt);border:1px solid var(--amber);border-radius:8px;
+  padding:11px 13px;font-size:12px;font-weight:600;color:#7a3e00;text-align:center}
+.gps-tag{font-size:10px;color:var(--muted);margin-top:4px;display:block}
+
 @media(max-width:760px){
   .layout{grid-template-columns:1fr}
-  aside{position:static;height:auto;flex-direction:row;overflow-x:auto;gap:4px}
+  aside{position:static;height:auto;flex-direction:row;overflow-x:auto;gap:4px;
+    border-right:none;border-bottom:1px solid var(--border);padding:8px}
   aside .ns{display:none}
-  main{padding:12px}
+  aside .ni{width:auto;white-space:nowrap;flex-shrink:0}
+  main{padding:12px 10px 60px}
+  .topbar{padding:0 12px;height:auto;min-height:52px;flex-wrap:wrap;gap:6px}
+  .topbar-right{gap:6px;flex-wrap:wrap}
+  .ph h2{font-size:17px}
   .slip-grid{grid-template-columns:repeat(2,1fr)}
+  .modal{padding:18px 14px}
+  /* iOS zooms the whole page when a focused input is under 16px */
+  input,select,textarea,.slip-f input,.slip-f select{font-size:16px}
+  .btn{padding:10px 14px}
+  .btn-sm{padding:9px 12px}
+  .btn-xs{padding:6px 10px;font-size:12px}
+  .drop-hdr{padding:12px}
+  .drop-no{width:26px;height:26px}
+  .sig-pad{height:150px}
+  .photo-thumb{width:64px;height:64px}
 }
 
 /* Print styles removed — use Save PNG button instead */
@@ -3071,6 +3090,13 @@ async function flushQueue() {
         } else if (it.kind === 'save') {
           const res = await apiSave(it.col, it.item);
           if (!res?.ok && !res?.data) throw new Error('save rejected');
+        } else if (it.kind === 'checkin') {
+          // Card keeps the original timestamp, so a late send still reads correctly
+          const res  = await fetch('/api/checkin', {
+            method:'POST', headers: authHdr(), body: JSON.stringify(it.payload)
+          });
+          const json = await res.json();
+          if (!json.ok && !json.disabled) throw new Error(json.error || 'checkin failed');
         }
         await idbDel(it.id);
       } catch (e) {
@@ -3113,7 +3139,7 @@ function slipFromSchedule(s, cMap) {
     date: s.date,
     plate: s.plate || '',
     driver: s.driver || '',
-    passenger: '',
+    helper: (s.helpers || []).filter(Boolean).join(', '),
     gas: '', vanLoad: '',
     kmOut: '', kmIn: '', timeOut: '', timeIn: '',
     cash: '', expense: '', change: '',
@@ -3217,6 +3243,8 @@ function renderSlipBody(id) {
   const ro = v => v ? '' : 'disabled';
 
   const loading = s.loading || {};
+  // The guard's loading check is the gate: no journey, no drops until it's signed off
+  const loaded = !!loading.timeOut;
   const html = `
     <!-- Loading / guard -->
     <div class="slip-sec">
@@ -3243,28 +3271,29 @@ function renderSlipBody(id) {
       <h4>🧭 Journey</h4>
       <div class="slip-grid">
         ${slipF(`s-driver-${id}`,'Driver', s.driver,'text',ro(canDriver))}
-        ${slipF(`s-passenger-${id}`,'Passenger', s.passenger,'text',ro(canDriver))}
-        ${slipF(`s-timeout-${id}`,'Time out', s.timeOut,'time',ro(canDriver))}
-        ${slipF(`s-timein-${id}`,'Time in', s.timeIn,'time',ro(canDriver))}
-        ${slipF(`s-kmin-${id}`,'KM in', s.kmIn,'number',ro(canDriver))}
-        ${slipF(`s-cash-${id}`,'Cash', s.cash,'number',ro(canDriver))}
-        ${slipF(`s-expense-${id}`,'Expense', s.expense,'number',ro(canDriver))}
-        ${slipF(`s-change-${id}`,'Change', s.change,'number',ro(canDriver))}
+        ${slipF(`s-helper-${id}`,'Helper', s.helper,'text',ro(canDriver))}
       </div>
+      ${(s.timeOut || s.timeIn) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px">
+        ${s.timeOut ? `Departed ${esc(s.timeOut)}` : ''}${s.timeOut && s.timeIn ? ' · ' : ''}${s.timeIn ? `Back ${esc(s.timeIn)}` : ''}
+      </div>` : ''}
       ${canDriver ? `<div style="margin-top:10px">
-        ${s.status === 'pending' || s.status === 'loaded'
-          ? `<button class="big-btn" onclick="startJourney('${esc(id)}')">▶ Start journey</button>`
-          : s.status === 'transit'
-            ? `<button class="big-btn green" onclick="endJourney('${esc(id)}')">■ End journey (back at SII)</button>`
-            : `<div style="text-align:center;font-size:12px;color:var(--green);font-weight:700">✓ Trip completed</div>`}
+        ${!loaded
+          ? `<div class="slip-wait">⏳ Waiting for the guard to finish the loading check</div>`
+          : s.status === 'loaded' || s.status === 'pending'
+            ? `<button class="big-btn" onclick="startJourney('${esc(id)}')">▶ Start journey</button>`
+            : s.status === 'transit'
+              ? `<button class="big-btn green" onclick="endJourney('${esc(id)}')">🏁 Complete journey — back at warehouse</button>`
+              : `<div style="text-align:center;font-size:12px;color:var(--green);font-weight:700">✓ Trip completed${s.timeIn?` at ${esc(s.timeIn)}`:''}</div>`}
       </div>` : ''}
     </div>
 
     <!-- Drops -->
     <div class="slip-sec">
       <h4>📍 Drops</h4>
-      ${s.drops.map((d,i) => renderDrop(id, d, i, canDriver)).join('') ||
-        '<div style="font-size:12px;color:var(--muted)">No drops on this schedule.</div>'}
+      ${!loaded && canDriver && role === 'driver'
+        ? `<div class="slip-wait">Drops unlock once loading is checked</div>`
+        : (s.drops.map((d,i) => renderDrop(id, d, i, canDriver && loaded)).join('') ||
+           '<div style="font-size:12px;color:var(--muted)">No drops on this schedule.</div>')}
     </div>
 
     <!-- Sign-off -->
@@ -3502,13 +3531,7 @@ async function saveLoading(id) {
 async function saveSlipHeader(id) {
   const s = _slipCache[id]; if (!s) return;
   s.driver     = val(`s-driver-${id}`);
-  s.passenger  = val(`s-passenger-${id}`);
-  s.timeOut    = val(`s-timeout-${id}`);
-  s.timeIn     = val(`s-timein-${id}`);
-  s.kmIn       = val(`s-kmin-${id}`);
-  s.cash       = val(`s-cash-${id}`);
-  s.expense    = val(`s-expense-${id}`);
-  s.change     = val(`s-change-${id}`);
+  s.helper     = val(`s-helper-${id}`);
   s.releasedBy = val(`s-released-${id}`);
   s.checkedBy  = val(`s-checked-${id}`);
   if (await persistSlip(s)) toast('Slip saved ✓','ok');
@@ -3516,6 +3539,7 @@ async function saveSlipHeader(id) {
 
 async function startJourney(id) {
   const s = _slipCache[id]; if (!s) return;
+  if (!s.loading?.timeOut) { toast('The guard has not completed the loading check yet','err'); return; }
   s.timeOut = s.timeOut || nowTime();
   s.status  = 'transit';
   if (await persistSlip(s)) { toast('Journey started · ' + s.timeOut,'ok'); renderSlipsPage(); }
@@ -3526,7 +3550,6 @@ async function endJourney(id) {
   const open = s.drops.filter(d => !d.timeOut).length;
   const finish = async () => {
     s.timeIn = s.timeIn || nowTime();
-    s.kmIn   = val(`s-kmin-${id}`) || s.kmIn;
     s.status = 'done';
     if (await persistSlip(s)) { toast('Journey completed · ' + s.timeIn,'ok'); renderSlipsPage(); }
   };
@@ -3534,13 +3557,71 @@ async function endJourney(id) {
   else await finish();
 }
 
+// ── GPS ──
+// Resolves to null rather than throwing: a refused permission or a bad fix must
+// never stop a driver recording the drop.
+function getPosition(timeoutMs = 12000) {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat:+p.coords.latitude.toFixed(6), lng:+p.coords.longitude.toFixed(6),
+                     accuracy:p.coords.accuracy, at:new Date().toISOString() }),
+      () => resolve(null),
+      { enableHighAccuracy:true, timeout:timeoutMs, maximumAge:0 }
+    );
+  });
+}
+
+// Post a sign-in / sign-out card. Queued if offline so it still lands later.
+async function sendCheckin(slip, drop, event, fix) {
+  const payload = {
+    event,
+    customer: drop.customer,
+    plate: slip.plate,
+    driver: slip.driver,
+    helpers: slip.helper || '',
+    lat: fix?.lat, lng: fix?.lng, accuracy: fix?.accuracy,
+    at: fix?.at || new Date().toISOString(),
+    qty: drop.qty,
+    receivingPerson: drop.receivingPerson,
+    remarks: drop.remarks,
+    photos: (drop.photos||[]).length
+  };
+  if (!navigator.onLine) {
+    await idbAdd({ kind:'checkin', payload });
+    showSyncBar();
+    return;
+  }
+  try {
+    const res  = await fetch('/api/checkin', { method:'POST', headers: authHdr(), body: JSON.stringify(payload) });
+    const json = await res.json();
+    if (json.disabled) return;                 // no trips chat configured — stay quiet
+    if (!json.ok) throw new Error(json.error || 'send failed');
+  } catch (e) {
+    await idbAdd({ kind:'checkin', payload });  // retry later rather than lose it
+    showSyncBar();
+  }
+}
+
 async function stampDrop(id, i) {
   const s = _slipCache[id]; if (!s) return;
+  const d = s.drops[i];
+  const btnLabel = 'Getting location…';
+  toast(btnLabel);
+
+  const fix = await getPosition();
+  d.timeIn   = nowTime();
+  d.location = fix || null;
   const el = document.getElementById(`d-in-${id}-${i}`);
-  if (el) el.value = nowTime();
-  s.drops[i].timeIn = nowTime();
+  if (el) el.value = d.timeIn;
+
   await persistSlip(s);
-  toast('Arrival ' + s.drops[i].timeIn,'ok');
+  await sendCheckin(s, d, 'in', fix);
+
+  toast(fix ? `Arrived ${d.timeIn} · location captured` : `Arrived ${d.timeIn} · no GPS fix`,
+        fix ? 'ok' : 'err');
+  renderSlipBody(id);
+  document.getElementById(`drop-${id}-${i}`).style.display = '';
 }
 
 async function completeDrop(id, i) {
@@ -3548,7 +3629,6 @@ async function completeDrop(id, i) {
   const d = s.drops[i];
   d.qty             = val(`d-qty-${id}-${i}`);
   d.timeIn          = val(`d-in-${id}-${i}`) || d.timeIn;
-  d.timeOut         = val(`d-out-${id}-${i}`) || nowTime();
   d.receivingPerson = val(`d-recv-${id}-${i}`);
   d.remarks         = val(`d-rem-${id}-${i}`);
   const sig = grabSig(id, i);
@@ -3557,8 +3637,14 @@ async function completeDrop(id, i) {
   if (!d.receivingPerson) { toast('Enter who received the delivery','err'); return; }
   if (!d.signature)       { toast('Ask the receiver to sign first','err'); return; }
 
+  toast('Getting location…');
+  const fix = await getPosition();
+  d.timeOut     = val(`d-out-${id}-${i}`) || nowTime();
+  d.locationOut = fix || null;
+
   if (s.status === 'pending' || s.status === 'loaded') s.status = 'transit';
   if (await persistSlip(s)) {
+    await sendCheckin(s, d, 'out', fix);
     toast(`${d.customer} completed ✓`,'ok');
     renderSlipBody(id);
   }
