@@ -334,6 +334,12 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 .po-line .po-doc{flex:1;min-width:95px}
 .po-ok{color:var(--green);font-weight:800;font-size:13px;flex-shrink:0;width:14px}
 
+.prep-crew{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.prep-crew-f{flex:1;min-width:140px}
+.prep-crew-f label{display:block;font-size:9px;font-weight:800;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.prep-crew-f input{font-size:12px;padding:6px 9px}
+
 /* ── Driver Slip ── */
 .slip-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
   box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
@@ -597,6 +603,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <div class="kpi purple"><div class="kv" id="prep-k-custs">0</div>  <div class="kl">Customers</div></div>
   </div>
   <div id="prep-list"></div>
+  <datalist id="prep-names"></datalist>
 </div>
 
 <!-- ══ DRIVER SLIP ══ -->
@@ -1830,7 +1837,8 @@ function getDeliveries() {
 function normPos(d) {
   if (Array.isArray(d.pos) && d.pos.length) {
     return d.pos.map(p => ({ no:p.no||'', doc:p.doc||'',
-      prepared:!!p.prepared, preparedBy:p.preparedBy||'', preparedAt:p.preparedAt||'' }));
+      prepared:!!p.prepared, preparedBy:p.preparedBy||'', preparedAt:p.preparedAt||'',
+      takenOutBy:p.takenOutBy||'', checkedBy:p.checkedBy||'' }));
   }
   const nums = String(d.poNumbers || '').split(',').map(s => s.trim()).filter(Boolean);
   const count = Math.max(parseInt(d.po) || 0, nums.length);
@@ -1839,7 +1847,8 @@ function normPos(d) {
     doc: i === 0 ? (d.docNumber || '') : '',
     prepared:   !!d.prepared,                 // old stop-level flag applied to all
     preparedBy: d.preparedBy || '',
-    preparedAt: d.preparedAt || ''
+    preparedAt: d.preparedAt || '',
+    takenOutBy: '', checkedBy: ''
   }));
 }
 
@@ -3280,8 +3289,16 @@ async function renderPrepPage() {
   document.getElementById('prep-sub').textContent =
     `${fmtMD(days[0])} – ${fmtMD(days[6])} ${days[6].getFullYear()}`;
 
-  const [schedules, customers] = await Promise.all([apiGet('schedules'), apiGet('customers')]);
+  const [schedules, customers, drivers] = await Promise.all([
+    apiGet('schedules'), apiGet('customers'), apiGet('drivers')]);
   const cMap = Object.fromEntries(customers.map(c => [c.id, c]));
+
+  // Suggest names already known to the system, plus whoever has been typed before
+  const known = new Set(drivers.map(d => d.name).filter(Boolean));
+  schedules.forEach(s => (s.deliveries||[]).forEach(d =>
+    (d.pos||[]).forEach(p => { if (p.takenOutBy) known.add(p.takenOutBy); if (p.checkedBy) known.add(p.checkedBy); })));
+  document.getElementById('prep-names').innerHTML =
+    [...known].sort().map(n => `<option value="${esc(n)}">`).join('');
 
   const scheds = schedules
     .filter(s => s.date >= ws && s.date <= we)
@@ -3345,6 +3362,19 @@ async function renderPrepPage() {
                 ${x.done?'Undo all':'Mark all'}</button>` : ''}
             </div>
 
+            ${x.pos.length ? `<div class="prep-crew">
+              <div class="prep-crew-f">
+                <label>Taken out by</label>
+                <input type="text" id="tob-${esc(x.schedId)}-${x.idx}" list="prep-names"
+                  value="${esc(prepLastNames().takenOutBy)}" placeholder="Who pulled the stock">
+              </div>
+              <div class="prep-crew-f">
+                <label>Checked by</label>
+                <input type="text" id="chb-${esc(x.schedId)}-${x.idx}" list="prep-names"
+                  value="${esc(prepLastNames().checkedBy)}" placeholder="Who verified it">
+              </div>
+            </div>` : ''}
+
             ${x.pos.length ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:5px">
               ${x.pos.map((p,pi) => `
                 <label style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;
@@ -3357,7 +3387,9 @@ async function renderPrepPage() {
                     ${p.no ? 'PO '+esc(p.no) : '<span style="color:var(--amber);font-weight:600">PO number not recorded</span>'}
                     ${p.doc ? `<span style="font-weight:500;color:var(--muted)"> · 📄 ${esc(p.doc)}</span>` : ''}
                   </span>
-                  ${p.prepared && p.preparedBy ? `<span style="font-size:10px;color:var(--green);white-space:nowrap">${esc(p.preparedBy)}</span>` : ''}
+                  ${p.prepared ? `<span style="font-size:10px;color:var(--green);white-space:nowrap;text-align:right;line-height:1.5">
+                    ${p.takenOutBy?`🔓 ${esc(p.takenOutBy)}<br>`:''}${p.checkedBy?`✓ ${esc(p.checkedBy)}`:esc(p.preparedBy||'')}
+                  </span>` : ''}
                 </label>`).join('')}
             </div>` : `<div style="font-size:11px;color:var(--amber);margin-top:6px">No POs listed on this stop</div>`}
           </div>`;
@@ -3385,22 +3417,58 @@ async function writePrepared(schedId, idx, mutate, msg) {
   renderPrepPage();
 }
 
-const prepStamp = on => ({
+// The two names carry over between stops — a checker works a whole shift with
+// the same picker, and retyping per PO would be unusable
+function prepLastNames() {
+  try {
+    return { takenOutBy: localStorage.getItem('sii_tob') || '',
+             checkedBy:  localStorage.getItem('sii_chb') || '' };
+  } catch(e) { return { takenOutBy:'', checkedBy:'' }; }
+}
+function prepRememberNames(tob, chb) {
+  try { localStorage.setItem('sii_tob', tob); localStorage.setItem('sii_chb', chb); } catch(e) {}
+}
+
+// Read the two name boxes for a stop; blocks the tick if either is empty
+function prepCrew(schedId, idx) {
+  const tob = (document.getElementById(`tob-${schedId}-${idx}`)?.value || '').trim();
+  const chb = (document.getElementById(`chb-${schedId}-${idx}`)?.value || '').trim();
+  if (!tob || !chb) {
+    toast('Enter both "Taken out by" and "Checked by" first','err');
+    return null;
+  }
+  prepRememberNames(tob, chb);
+  return { tob, chb };
+}
+
+const prepStamp = (on, crew) => ({
   prepared: on,
   preparedBy: on ? (currentUser?.name || currentUser?.username || '') : '',
-  preparedAt: on ? new Date().toISOString() : ''
+  preparedAt: on ? new Date().toISOString() : '',
+  takenOutBy: on ? crew.tob : '',
+  checkedBy:  on ? crew.chb : ''
 });
 
 async function togglePrepared(schedId, idx, poIdx, on) {
+  let crew = { tob:'', chb:'' };
+  if (on) {
+    crew = prepCrew(schedId, idx);
+    if (!crew) { renderPrepPage(); return; }   // re-render to untick the box
+  }
   await writePrepared(schedId, idx,
-    pos => { if (pos[poIdx]) Object.assign(pos[poIdx], prepStamp(on)); },
-    on ? 'PO marked prepared ✓' : 'PO unmarked');
+    pos => { if (pos[poIdx]) Object.assign(pos[poIdx], prepStamp(on, crew)); },
+    on ? `PO prepared ✓ — ${crew.tob} / ${crew.chb}` : 'PO unmarked');
 }
 
 async function toggleAllPos(schedId, idx, on) {
+  let crew = { tob:'', chb:'' };
+  if (on) {
+    crew = prepCrew(schedId, idx);
+    if (!crew) return;
+  }
   await writePrepared(schedId, idx,
-    pos => pos.forEach(p => Object.assign(p, prepStamp(on))),
-    on ? 'All POs marked prepared ✓' : 'All POs unmarked');
+    pos => pos.forEach(p => Object.assign(p, prepStamp(on, crew))),
+    on ? `All POs prepared ✓ — ${crew.tob} / ${crew.chb}` : 'All POs unmarked');
 }
 
 // ══════════════════════════════════════════════════
