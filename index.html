@@ -381,6 +381,14 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   border:1px solid #fed7aa;border-radius:7px;padding:7px 9px}
 .ctr-variance{margin-top:7px;font-size:11px;font-weight:700;color:#9a3412;
   background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:6px 9px}
+.ctr-hidden-bar{padding:10px 14px;background:var(--bg);border-top:1px solid var(--border);
+  font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}
+.ctr-hidden-bar:hover{background:#f0f2f7;color:var(--text)}
+.btn-pulse{box-shadow:0 0 0 3px rgba(229,62,48,.22)}
+.fin-link{display:flex;flex-direction:column;gap:3px;min-width:150px}
+.fin-link a{font-size:11px;font-weight:700;color:var(--accent);text-decoration:none}
+.fin-link a:hover{text-decoration:underline}
+.fin-link input{font-size:11px;padding:5px 7px}
 @media(max-width:760px){
   .ctr-docs{flex-direction:column;align-items:stretch}
   .ctr-si input{width:100%}
@@ -507,6 +515,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <button class="ni role-office" id="nav-dash"        onclick="go('dash')">     <span>📊</span> Dashboard</button>
   <button class="ni role-office" id="nav-po"          onclick="go('po')">       <span>📋</span> Purchase Orders</button>
   <button class="ni role-office" id="nav-counter"     onclick="go('counter')">  <span>🧾</span> Countering</button>
+  <button class="ni role-office" id="nav-finance"     onclick="go('finance')">  <span>💰</span> Finance</button>
   <div class="ns role-field">Operations</div>
   <button class="ni role-field"  id="nav-slips"       onclick="go('slips')">    <span>🚚</span> Driver Slip</button>
   <button class="ni role-field"  id="nav-prep"        onclick="go('prep')">     <span>✅</span> Preparation</button>
@@ -528,6 +537,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   <div class="ph">
     <div><h2>Schedule Grid</h2><p id="cal-lbl">—</p></div>
     <div class="ph-act">
+      <button class="btn btn-o btn-sm role-admin" onclick="setupBaseTable()" title="Create the required columns in the Lark Base">⚙ Set up Base</button>
       <button class="btn btn-o btn-sm role-edit" onclick="resyncWeekToBase()" title="Re-push this week's schedules to Lark Base">⇅ Sync Base</button>
       <button class="btn btn-p btn-sm role-edit" onclick="openAddSched()">+ Add Schedule</button>
     </div>
@@ -628,6 +638,43 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
   </div>
 </div>
 
+<!-- ══ FINANCE ══ -->
+<div class="page" id="page-finance">
+  <div class="ph">
+    <div><h2>💰 Finance</h2><p>Invoiced deliveries and their document links</p></div>
+    <div class="ph-act">
+      <button class="btn btn-o btn-sm" onclick="exportFinanceCsv()">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="soa-fbar">
+    <div class="soa-fg"><label>Month</label><select id="fin-month" onchange="renderFinancePage()"></select></div>
+    <div class="soa-fg"><label>Year</label><select id="fin-year" onchange="renderFinancePage()"></select></div>
+    <div class="soa-fg"><label>Links</label>
+      <select id="fin-links" onchange="renderFinancePage()">
+        <option value="">All</option>
+        <option value="missing">Missing a link</option>
+        <option value="complete">Both links in</option>
+      </select></div>
+    <div class="cust-search-wrap" style="max-width:210px">
+      <span class="si">🔍</span>
+      <input type="text" id="fin-search" placeholder="SI, PO or customer…" oninput="renderFinancePage()">
+    </div>
+  </div>
+
+  <div class="soa-kgrid">
+    <div class="kpi blue">  <div class="kv" id="fin-k-rows">0</div>  <div class="kl">Invoiced Lines</div></div>
+    <div class="kpi green"> <div class="kv" id="fin-k-value">₱0</div><div class="kl">Total SI Value</div></div>
+    <div class="kpi amber"> <div class="kv" id="fin-k-links">0</div> <div class="kl">Missing Links</div></div>
+    <div class="kpi purple"><div class="kv" id="fin-k-var">0</div>   <div class="kl">Value Mismatches</div></div>
+  </div>
+
+  <div class="card">
+    <div class="ch"><h3>Invoiced deliveries</h3><span id="fin-count" style="font-size:11px;color:var(--muted)"></span></div>
+    <div id="fin-table" style="padding:0;overflow-x:auto"></div>
+  </div>
+</div>
+
 <!-- ══ COUNTERING ══ -->
 <div class="page" id="page-counter">
   <div class="ph">
@@ -644,6 +691,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       <select id="counter-status" onchange="renderCounterPage()">
         <option value="">All</option>
         <option value="toconfirm">To confirm</option>
+        <option value="finance">Sent to finance</option>
         <option value="returns">Returns / backload</option>
         <option value="pending">Docs outstanding</option>
         <option value="complete">Docs complete</option>
@@ -1618,6 +1666,7 @@ function go(page) {
   if (page==='slips')     renderSlipsPage();
   if (page==='prep')      renderPrepPage();
   if (page==='counter')   renderCounterPage();
+  if (page==='finance')   renderFinancePage();
   if (page==='customers') renderCustomersPage();
   if (page==='drivers')   renderDriversPage();
   if (page==='trucks')    renderTrucksPage();
@@ -2138,6 +2187,31 @@ async function deleteScheduleFromBase(syncKey) {
 function baseWarn(msg) {
   console.error('Lark Base sync:', msg);
   toast('Saved, but Lark Base sync failed — ' + (msg || 'unknown error'), 'err');
+}
+
+// One-time: create the columns this tool writes to. Idempotent, so running it
+// again on a populated table only reports what already exists.
+async function setupBaseTable() {
+  toast('Checking the Base table…');
+  try {
+    const res  = await fetch('/api/base', {
+      method:'POST', headers: authHdr(), body: JSON.stringify({ op:'setup' })
+    });
+    const json = await res.json();
+    if (json.disabled) { toast(json.error,'err'); return; }
+    if (!json.ok && !json.created?.length) {
+      toast('Setup failed — ' + (json.error || json.failed?.join('; ')),'err');
+      return;
+    }
+    const bits = [];
+    if (json.created?.length) bits.push(`created ${json.created.length}`);
+    if (json.kept?.length)    bits.push(`${json.kept.length} already there`);
+    if (json.failed?.length)  bits.push(`${json.failed.length} failed`);
+    toast('Base table: ' + bits.join(' · '), json.failed?.length ? 'err' : 'ok');
+    if (json.failed?.length) console.error('Base setup failures:', json.failed);
+  } catch(e) {
+    toast('Setup failed — ' + e.message,'err');
+  }
 }
 
 // Re-push every schedule in the visible week, for when things drift
@@ -3389,6 +3463,119 @@ window.addEventListener('offline', () => { showSyncBar(); });
 setInterval(() => { queueDepth().then(n => { if (n) flushQueue(); }); }, 30000);
 
 // ══════════════════════════════════════════════════
+//  FINANCE
+//  Everything Countering has handed over: one line per invoiced PO, plus the
+//  two Drive links finance keeps against it.
+// ══════════════════════════════════════════════════
+function initFinFilters() {
+  const mSel = document.getElementById('fin-month');
+  const ySel = document.getElementById('fin-year');
+  if (mSel.dataset.init) return;
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const now = new Date();
+  mSel.innerHTML = months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  mSel.value = now.getMonth()+1;
+  const cy = now.getFullYear();
+  ySel.innerHTML = [cy-1, cy, cy+1].map(y=>`<option value="${y}">${y}</option>`).join('');
+  ySel.value = cy;
+  mSel.dataset.init = '1';
+}
+
+async function renderFinancePage() {
+  initFinFilters();
+  // Reuse the countering join, then keep only what's been handed over
+  const y = document.getElementById('fin-year').value;
+  const m = String(document.getElementById('fin-month').value).padStart(2,'0');
+  document.getElementById('counter-year').value  = y;
+  document.getElementById('counter-month').value = parseInt(m);
+
+  const all = (await buildCounterRows()).filter(r => r.financeReady);
+  const linkFilter = document.getElementById('fin-links').value;
+  const q = document.getElementById('fin-search').value.trim().toLowerCase();
+
+  const bothLinks = r => r.whiteCopyUrl && r.siCopyUrl;
+  const mismatch  = r => r.poValue !== '' && r.siValue !== '' && Number(r.poValue) !== Number(r.siValue);
+
+  document.getElementById('fin-k-rows').textContent  = all.length;
+  document.getElementById('fin-k-value').textContent =
+    '₱' + all.reduce((n,r)=>n+(Number(r.siValue)||0),0).toLocaleString('en-PH',{maximumFractionDigits:0});
+  document.getElementById('fin-k-links').textContent = all.filter(r => !bothLinks(r)).length;
+  document.getElementById('fin-k-var').textContent   = all.filter(mismatch).length;
+
+  let rows = all;
+  if (linkFilter === 'missing')  rows = rows.filter(r => !bothLinks(r));
+  if (linkFilter === 'complete') rows = rows.filter(bothLinks);
+  if (q) rows = rows.filter(r =>
+    [r.si, r.poNo, r.customer].some(v => String(v||'').toLowerCase().includes(q)));
+
+  document.getElementById('fin-count').textContent =
+    `${rows.length} of ${all.length} line${all.length!==1?'s':''}`;
+
+  document.getElementById('fin-table').innerHTML = rows.length
+    ? `<table>
+        <thead><tr>
+          <th>Date</th><th>Customer</th><th>SI Number</th><th class="num">SI Value</th>
+          <th>PO Number</th><th class="num">Boxes</th><th>Checker</th>
+          <th>White copy</th><th>SI copy</th>
+        </tr></thead>
+        <tbody>${rows.map(r => {
+          const d = new Date(r.date + 'T00:00:00');
+          return `<tr>
+            <td style="white-space:nowrap;font-size:12px">${esc(d.toLocaleDateString('en-PH',{month:'short',day:'numeric'}))}</td>
+            <td style="font-size:12px;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.customer)}</td>
+            <td style="font-size:12px;font-weight:700">${esc(r.si||'—')}</td>
+            <td class="num" style="font-weight:700">${esc(peso(r.siValue)||'—')}
+              ${mismatch(r)?`<div style="font-size:10px;color:#9a3412;font-weight:600">PO ${esc(peso(r.poValue))}</div>`:''}</td>
+            <td style="font-size:12px">${esc(r.poNo||'—')}</td>
+            <td class="num">${esc(String(r.boxes||'—'))}</td>
+            <td style="font-size:11px;color:var(--muted)">${esc(r.checkedBy||r.takenOutBy||'—')}</td>
+            <td>${finLink(r,'whiteCopyUrl','White copy')}</td>
+            <td>${finLink(r,'siCopyUrl','SI copy')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`
+    : '<div class="no-data">Nothing here yet — lines appear once Countering saves the SI details.</div>';
+}
+
+function finLink(r, field, label) {
+  const url = r[field];
+  return `<div class="fin-link">
+    ${url ? `<a href="${esc(url)}" target="_blank" title="${esc(url)}">🔗 Open</a>` : ''}
+    <input type="url" value="${esc(url)}" placeholder="Paste Drive link"
+      onchange="saveFinLink('${esc(r.id)}','${esc(r.date)}','${field}',this.value.trim())">
+  </div>`;
+}
+
+async function saveFinLink(id, date, field, url) {
+  if (url && !/^https?:\/\//i.test(url)) { toast('That does not look like a link','err'); return; }
+  const col = counterCol(date);
+  const existing = (await apiGet(col)).find(r => r.id === id) || { id, date, copies:{} };
+  const res = await apiSave(col, { ...existing, id, date, [field]: url, updatedAt:new Date().toISOString() });
+  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
+  toast(url ? 'Link saved ✓' : 'Link cleared','ok');
+  renderFinancePage();
+}
+
+async function exportFinanceCsv() {
+  const all = (await buildCounterRows()).filter(r => r.financeReady);
+  if (!all.length) { toast('Nothing to export for this month','err'); return; }
+  const header = ['Date','Customer','SI Number','SI Value','PO Number','PO Value','Variance',
+                  'Boxes','Checker','Taken Out By','White Copy Link','SI Copy Link','Sent To Finance By'];
+  const body = all.map(r => [r.date, r.customer, r.si, r.siValue, r.poNo, r.poValue,
+    (r.poValue!==''&&r.siValue!=='') ? (Number(r.siValue)-Number(r.poValue)).toFixed(2) : '',
+    r.boxes, r.checkedBy, r.takenOutBy, r.whiteCopyUrl, r.siCopyUrl, r.financeBy]);
+  const csv = [header,...body].map(rw => rw.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  const y = document.getElementById('fin-year').value;
+  const m = String(document.getElementById('fin-month').value).padStart(2,'0');
+  a.download = `SII_Finance_${y}_${m}.csv`;
+  a.click();
+  toast('CSV exported ✓','ok');
+}
+
+// ══════════════════════════════════════════════════
 //  COUNTERING
 //  Joins schedule (PO/doc), checker (who prepared), guard (boxes) and driver
 //  (delivery) into one line per PO. Only the SI number and the document return
@@ -3477,7 +3664,13 @@ async function buildCounterRows() {
           siValue:  ctr.siValue ?? '',
           copies:   ctr.copies || {},
           pulloutDocs: !!ctr.pulloutDocs,
-          docNotes: ctr.docNotes || ''
+          docNotes: ctr.docNotes || '',
+          // Stage 3 — handed to finance
+          financeReady: !!ctr.financeReady,
+          financeBy:    ctr.financeBy || '',
+          financeAt:    ctr.financeAt || '',
+          whiteCopyUrl: ctr.whiteCopyUrl || '',
+          siCopyUrl:    ctr.siCopyUrl || ''
         });
       });
     });
@@ -3512,6 +3705,8 @@ async function renderCounterPage() {
   document.getElementById('ctr-k-done').textContent    = all.filter(r => r.confirmed && copiesDone(r)).length;
 
   let rows = all;
+  if (!status)                rows = rows.filter(r => !r.financeReady);
+  if (status === 'finance')   rows = rows.filter(r => r.financeReady);
   if (status === 'toconfirm') rows = rows.filter(r => r.delivered && !r.confirmed);
   if (status === 'returns')   rows = rows.filter(r => r.outcome === 'partial' || r.outcome === 'returned');
   if (status === 'pending')   rows = rows.filter(r => r.confirmed && !copiesDone(r));
@@ -3531,17 +3726,37 @@ async function renderCounterPage() {
 
   list.innerHTML = Object.keys(byDate).sort().map(date => {
     const d = new Date(date + 'T00:00:00');
+    const all  = byDate[date];
+    const live = all.filter(r => r.delivered);       // delivered — the work
+    const wait = all.filter(r => !r.delivered);      // not out yet — parked
+    const open = _ctrOpenDays.has(date);
     return `<div class="card">
       <div class="ch">
         <h3>${DAY_LBL(d)} · ${d.toLocaleDateString('en-PH',{month:'long',day:'numeric'})}</h3>
-        <span style="font-size:11px;color:var(--muted)">${byDate[date].length} PO line${byDate[date].length!==1?'s':''}</span>
-        ${byDate[date].some(r => r.delivered && !r.confirmed)
+        <span style="font-size:11px;color:var(--muted)">${live.length} delivered${wait.length?` · ${wait.length} pending`:''}</span>
+        ${live.some(r => r.delivered && !r.confirmed)
           ? `<button type="button" class="btn btn-o btn-sm" onclick="confirmAllForDay('${date}')">
                ✓ Yes to all delivered</button>` : ''}
       </div>
-      <div style="padding:0">${byDate[date].map(r => counterRow(r)).join('')}</div>
+      <div style="padding:0">
+        ${live.map(r => counterRow(r)).join('') ||
+          '<div class="no-data" style="padding:18px">Nothing delivered on this day yet.</div>'}
+        ${wait.length ? `
+          <div class="ctr-hidden-bar" onclick="toggleCtrDay('${date}')">
+            ${open ? '▾' : '▸'} ${wait.length} PO line${wait.length!==1?'s':''} not delivered yet
+          </div>
+          <div style="display:${open?'':'none'}">${wait.map(r => counterRow(r)).join('')}</div>` : ''}
+      </div>
     </div>`;
   }).join('');
+}
+
+// Which days have their undelivered rows expanded
+const _ctrOpenDays = new Set();
+function toggleCtrDay(date) {
+  if (_ctrOpenDays.has(date)) _ctrOpenDays.delete(date);
+  else _ctrOpenDays.add(date);
+  renderCounterPage();
 }
 
 function counterRow(r) {
@@ -3592,18 +3807,23 @@ function counterRow(r) {
     <div class="ctr-docs">
       <div class="ctr-si">
         <label>PO value</label>
-        <input type="number" step="0.01" min="0" value="${esc(String(r.poValue))}" placeholder="0.00"
-          onchange="saveCounter('${esc(r.id)}','${esc(r.date)}',{poValue:this.value===''?'':Number(this.value)})">
+        <input type="number" step="0.01" min="0" id="pov-${esc(r.id)}"
+          value="${esc(String(r.poValue))}" placeholder="0.00" oninput="ctrDirty('${esc(r.id)}')">
       </div>
       <div class="ctr-si">
         <label>SI number</label>
-        <input type="text" value="${esc(r.si)}" placeholder="SI-…"
-          onchange="saveCounter('${esc(r.id)}','${esc(r.date)}',{si:this.value.trim()})">
+        <input type="text" id="sin-${esc(r.id)}"
+          value="${esc(r.si)}" placeholder="SI-…" oninput="ctrDirty('${esc(r.id)}')">
       </div>
       <div class="ctr-si">
         <label>SI value</label>
-        <input type="number" step="0.01" min="0" value="${esc(String(r.siValue))}" placeholder="0.00"
-          onchange="saveCounter('${esc(r.id)}','${esc(r.date)}',{siValue:this.value===''?'':Number(this.value)})">
+        <input type="number" step="0.01" min="0" id="siv-${esc(r.id)}"
+          value="${esc(String(r.siValue))}" placeholder="0.00" oninput="ctrDirty('${esc(r.id)}')">
+      </div>
+      <div class="ctr-si" style="align-self:flex-end">
+        <button type="button" class="btn btn-p btn-sm" id="sav-${esc(r.id)}"
+          onclick="saveCounterValues('${esc(r.id)}','${esc(r.date)}')">Save &amp; send to Finance</button>
+        <div id="dirty-${esc(r.id)}" style="font-size:10px;color:var(--amber);font-weight:700;margin-top:3px;display:none">Unsaved changes</div>
       </div>
       <div class="ctr-copies">
         ${SI_COPIES.map(c => `
@@ -3629,6 +3849,35 @@ function counterRow(r) {
         onclick="reopenCounter('${esc(r.id)}','${esc(r.date)}')">Reopen</button>
     </div>`}
   </div>`;
+}
+
+// Flag unsaved edits so nobody walks away assuming a number was stored
+function ctrDirty(id) {
+  const tag = document.getElementById('dirty-'+id);
+  if (tag) tag.style.display = '';
+  const btn = document.getElementById('sav-'+id);
+  if (btn) btn.classList.add('btn-pulse');
+}
+
+// Values are saved together on an explicit click, and that hand-off is what
+// moves the line into Finance.
+async function saveCounterValues(id, date) {
+  const poRaw = (document.getElementById('pov-'+id)?.value || '').trim();
+  const si    = (document.getElementById('sin-'+id)?.value || '').trim();
+  const svRaw = (document.getElementById('siv-'+id)?.value || '').trim();
+
+  if (!si)    { toast('Enter the SI number','err'); return; }
+  if (!poRaw) { toast('Enter the PO value','err'); return; }
+  if (!svRaw) { toast('Enter the SI value','err'); return; }
+
+  await saveCounter(id, date, {
+    poValue: Number(poRaw),
+    si,
+    siValue: Number(svRaw),
+    financeReady: true,
+    financeBy: currentUser?.name || currentUser?.username || '',
+    financeAt: new Date().toISOString()
+  }, `Saved · SI ${si} sent to Finance ✓`);
 }
 
 function counterOutcomePick(id) {
@@ -3681,13 +3930,14 @@ async function confirmAllForDay(date) {
 }
 
 // Only the SI number and document state live in the countering record
-async function saveCounter(id, date, patch) {
+async function saveCounter(id, date, patch, msg) {
   const col = counterCol(date);
   if (!col) { toast('Invalid date','err'); return; }
   const existing = (await apiGet(col)).find(r => r.id === id) || { id, date, copies:{} };
   const item = { ...existing, ...patch, id, date, updatedAt:new Date().toISOString() };
   const res = await apiSave(col, item);
-  if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
+  if (!res?.ok && !res?.data) { toast('Save failed — nothing was stored','err'); return; }
+  if (msg) toast(msg,'ok');
   renderCounterPage();
 }
 
