@@ -823,6 +823,7 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <table>
       <thead><tr>
         <th>Customer Name</th>
+        <th>Sales Agent</th>
         <th>Address / Notes</th>
         <th>Share</th>
         <th>Delivery Days</th>
@@ -1145,9 +1146,15 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
         <select id="f-plate-sel" onchange="document.getElementById('f-plate').value=this.value"></select>
       </div>
     </div>
-    <div class="field">
-      <label>Plate (type to override)</label>
-      <input type="text" id="f-plate" placeholder="e.g. ABC-1234" style="text-transform:uppercase">
+    <div class="field-row">
+      <div class="field">
+        <label>Plate (type to override)</label>
+        <input type="text" id="f-plate" placeholder="e.g. ABC-1234" style="text-transform:uppercase">
+      </div>
+      <div class="field">
+        <label>Driver reporting time</label>
+        <select id="f-reporttime"></select>
+      </div>
     </div>
     <div class="section-label">Deliveries — Customer &amp; PO Count</div>
     <div class="delivery-list" id="delivery-list"></div>
@@ -1190,6 +1197,10 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
     <input type="hidden" id="f-cust-id">
     <div class="field"><label>Customer Name</label><input type="text" id="f-cname" placeholder="e.g. SM HOME - AURA"></div>
     <div class="field"><label>Address / Notes</label><input type="text" id="f-caddr" placeholder="City, address, or delivery notes"></div>
+    <div class="field">
+      <label>Sales Agent</label>
+      <select id="f-cagent"></select>
+    </div>
     <div class="field">
       <label>Delivery Days</label>
       <div class="day-checks" id="day-checks">
@@ -1797,6 +1808,7 @@ async function renderCalendar() {
           <div class="dc" onclick="openEditSched('${esc(sched.id)}')">
             <div class="dc-card cc-${ci}">
               ${holBanner}${codingBanner}
+              ${sched.reportTime ? `<div style="font-size:9px;font-weight:800;color:#0891b2;margin-bottom:2px">⏰ Report ${esc(sched.reportTime)}</div>` : ''}
               ${stopLines}
               ${timeStr ? `<div class="dc-time">${timeStr}</div>` : ''}
               <div class="dc-drv">👤 ${esc(drvLast)}</div>
@@ -1827,6 +1839,7 @@ async function renderCalendar() {
 //  SCHEDULE MODAL
 // ══════════════════════════════════════════════════
 async function openAddSched() {
+  fillSelect('f-reporttime', REPORT_TIMES, REPORT_TIMES[0], '— not set —');
   const customers = await apiGet('customers');
   if (!customers.length) { toast('Add at least one customer first','err'); go('customers'); return; }
   const trucks = await apiGet('trucks');
@@ -1844,6 +1857,7 @@ async function openAddSched() {
 }
 
 async function openAddSchedFor(plate, date) {
+  fillSelect('f-reporttime', REPORT_TIMES, REPORT_TIMES[0], '— not set —');
   await openAddSched();
   document.getElementById('f-date').value = date;
   document.getElementById('f-plate').value = plate;
@@ -1869,6 +1883,7 @@ async function openEditSched(id) {
   document.getElementById('f-plate').value    = s.plate;
   document.getElementById('f-driver').value   = s.driver || '';
   document.getElementById('f-notes').value    = s.notes  || '';
+  fillSelect('f-reporttime', REPORT_TIMES, s.reportTime || '', '— not set —');
   document.getElementById('btn-del-sched').style.display = currentUser?.role === 'viewer' ? 'none' : '';
   document.getElementById('m-sched-title').textContent   = currentUser?.role === 'viewer' ? 'View Schedule' : 'Edit Schedule';
   await populateSchedDropdowns(s.plate, s.driver||'');
@@ -2070,8 +2085,9 @@ async function saveSched() {
   const id        = document.getElementById('f-sched-id').value;
   const date      = document.getElementById('f-date').value;
   const plate     = document.getElementById('f-plate').value.trim().toUpperCase();
-  const driver    = document.getElementById('f-driver').value.trim();
-  const notes     = document.getElementById('f-notes').value.trim();
+  const driver     = document.getElementById('f-driver').value.trim();
+  const reportTime = document.getElementById('f-reporttime').value;
+  const notes      = document.getElementById('f-notes').value.trim();
   const helpers   = [...document.querySelectorAll('#helpers-list input')].map(i=>i.value.trim()).filter(Boolean);
   const deliveries = getDeliveries();
 
@@ -2093,7 +2109,8 @@ async function saveSched() {
 
   const doSave = async () => {
     const uid_  = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    const entry = { id: id||uid_(), date, plate, driver, helpers, deliveries, notes, created: new Date().toISOString() };
+    const entry = { id: id||uid_(), date, plate, reportTime, driver, helpers, deliveries, notes,
+                    created: new Date().toISOString() };
     const res   = await apiSave('schedules', entry);
     if (!res?.ok && !res?.data) { toast('Save failed — try again','err'); return; }
     closeModal('m-sched');
@@ -2625,6 +2642,7 @@ function filterCustomers() {
     ? _allCustomers.filter(c =>
         (c.name||'').toLowerCase().includes(q) ||
         (c.address||'').toLowerCase().includes(q) ||
+        (c.salesAgent||'').toLowerCase().includes(q) ||
         (c.days||[]).join(' ').toLowerCase().includes(q))
     : _allCustomers;
   renderCustomerRows(filtered);
@@ -2635,7 +2653,7 @@ function renderCustomerRows(custs) {
   const count = document.getElementById('cust-count');
   count.textContent = custs.length + ' customer' + (custs.length !== 1 ? 's' : '');
   if (!custs.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="no-data">No customers found.</div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8"><div class="no-data">No customers found.</div></td></tr>';
     return;
   }
   const pal = ['#2563eb','#16a34a','#d97706','#7c3aed','#db2777','#0891b2','#dc2626','#65a30d'];
@@ -2649,6 +2667,9 @@ function renderCustomerRows(custs) {
       <td><div class="en" style="display:flex;align-items:center;gap:8px">
         <span style="width:10px;height:10px;border-radius:2px;background:${pal[colorIdx]};flex-shrink:0"></span>${esc(c.name)}
       </div></td>
+      <td>${c.salesAgent
+        ? `<span class="tag" style="background:#f5f3ff;color:#7c3aed;font-size:10px">${esc(c.salesAgent)}</span>`
+        : '<span style="color:var(--muted);font-size:12px">—</span>'}</td>
       <td><div class="es">${esc(c.address||'—')}</div></td>
       <td><button class="share-btn" onclick="openShareCustomer('${c.id}')">🔗 Share</button></td>
       <td>${dayBadges||'<span style="color:var(--muted);font-size:12px">—</span>'}</td>
@@ -2724,6 +2745,7 @@ function openAddCustomer() {
   document.getElementById('f-permit-input').value='';
   document.getElementById('m-customer-title').textContent='Add Customer';
   document.getElementById('btn-del-cust').style.display='none';
+  fillSelect('f-cagent', SALES_AGENTS, '', '— none —');
   setDayChecks([]); renderPermitList([]); openModal('m-customer');
 }
 async function openEditCustomer(id) {
@@ -2732,6 +2754,7 @@ async function openEditCustomer(id) {
   document.getElementById('f-cust-id').value=c.id; document.getElementById('f-cname').value=c.name;
   document.getElementById('f-caddr').value=c.address||''; document.getElementById('f-ctime').value=c.time||'';
   document.getElementById('f-permit-input').value='';
+  fillSelect('f-cagent', SALES_AGENTS, c.salesAgent || '', '— none —');
   document.getElementById('m-customer-title').textContent='Edit Customer';
   document.getElementById('btn-del-cust').style.display='';
   setDayChecks(c.days||[]); renderPermitList(c.permits||[]); openModal('m-customer');
@@ -2740,6 +2763,7 @@ async function saveCustomer() {
   const id=document.getElementById('f-cust-id').value;
   const name=document.getElementById('f-cname').value.trim();
   const address=document.getElementById('f-caddr').value.trim();
+  const salesAgent=document.getElementById('f-cagent').value;
   const time=document.getElementById('f-ctime').value.trim();
   const days=getDayChecks();
   const permits=getPermitItems();
@@ -2747,8 +2771,8 @@ async function saveCustomer() {
   const uid_=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const custs = await apiGet('customers');
   const item = id
-    ? {...custs.find(c=>c.id===id), name, address, days, time, permits}
-    : {id:uid_(), name, address, days, time, permits};
+    ? {...custs.find(c=>c.id===id), name, address, salesAgent, days, time, permits}
+    : {id:uid_(), name, address, salesAgent, days, time, permits};
   const res = await apiSave('customers', item);
   if (!res?.ok && !res?.data) { toast('Save failed','err'); return; }
   closeModal('m-customer'); toast(id?'Customer updated ✓':'Customer added ✓','ok');
@@ -3644,6 +3668,7 @@ async function buildCounterRows() {
         rows.push({
           id, date: s.date, plate: s.plate, driver: s.driver,
           customer: cMap[d.cid]?.name || '?',
+          salesAgent: cMap[d.cid]?.salesAgent || '',
           poNo: p.no, docNo: p.doc,
           takenOutBy: p.takenOutBy, checkedBy: p.checkedBy, prepared: p.prepared,
           boxes: slip?.loading?.boxes || '',
@@ -4248,6 +4273,7 @@ function slipFromSchedule(s, cMap) {
     scheduleId: s.id,
     date: s.date,
     plate: s.plate || '',
+    reportTime: s.reportTime || '',
     driver: s.driver || '',
     helper: (s.helpers || []).filter(Boolean).join(', '),
     gas: '', vanLoad: '',
@@ -4258,6 +4284,7 @@ function slipFromSchedule(s, cMap) {
       cid: d.cid,
       customer: cMap[d.cid]?.name || '?',
       address:  cMap[d.cid]?.address || '',
+      salesAgent: cMap[d.cid]?.salesAgent || '',
       window:   cMap[d.cid]?.time || '',
       pos: normPos(d),
       qty: d.po || '',
@@ -4429,6 +4456,7 @@ function renderSlipBody(id) {
         ${slipF(`s-driver-${id}`,'Driver', s.driver,'text',ro(canDriver))}
         ${slipF(`s-helper-${id}`,'Helper', s.helper,'text',ro(canDriver))}
       </div>
+      ${s.reportTime ? `<div style="font-size:12px;font-weight:700;color:#0891b2;margin-top:8px">⏰ Report at ${esc(s.reportTime)}</div>` : ''}
       ${(s.timeOut || s.timeIn) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px">
         ${s.timeOut ? `Departed ${esc(s.timeOut)}` : ''}${s.timeOut && s.timeIn ? ' · ' : ''}${s.timeIn ? `Back ${esc(s.timeIn)}` : ''}
       </div>` : ''}
@@ -5732,6 +5760,20 @@ async function exportCSV() {
 // ══════════════════════════════════════════════════
 //  SEND TO LARK
 // ══════════════════════════════════════════════════
+// Driver reporting times offered on a schedule. Add to this list to extend it.
+const REPORT_TIMES = ['6:00 AM', '7:00 AM', '8:00 AM'];
+
+// Sales agents a customer can be assigned to — used for routing and reporting
+const SALES_AGENTS = ['Office', 'Vhet', 'Roy', 'Emilia'];
+
+function fillSelect(id, values, selected, blankLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${blankLabel}</option>` +
+    values.map(v => `<option value="${esc(v)}"${v === selected ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  sel.value = selected || '';
+}
+
 const LARK_CHATS = [
   { key:'delivery', label:'Delivery team',     desc:'Full week overview' },
   { key:'drivers',  label:'Drivers & Helpers', desc:'Assignments and permits' },
@@ -5888,6 +5930,8 @@ function buildDriversCard(ctx, detail, dates) {
 
   const el = [ md(`**${mdEsc(hdr)}**`) ];
   let any = false;
+  const reportTimes = [...new Set(scheds.map(s => s.reportTime).filter(Boolean))];
+  if (reportTimes.length) el.push(md(`⏰ **Report at** ${mdEsc(reportTimes.join(' / '))}`));
 
   for (const d of picked) {
     const ds = dStr(d);
@@ -5905,6 +5949,7 @@ function buildDriversCard(ctx, detail, dates) {
       const helpers = (s.helpers||[]).filter(Boolean);
       el.push(two(`**Truck**\n\`${mdEsc(s.plate||'—')}\``,
                   `**Driver**\n${mdEsc(s.driver || 'TBA')}`));
+      if (s.reportTime) el.push(md(`⏰ **Report at** ${mdEsc(s.reportTime)}`));
       if (helpers.length) el.push(md(`**Helpers** · ${mdEsc(helpers.join(', '))}`));
 
       const delivs = (s.deliveries||[]).filter(x=>x.cid);
