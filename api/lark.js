@@ -17,6 +17,26 @@ const LABELS = {
   sm:       'SM promodizer'
 };
 
+// Sales agents get their own chats, named by convention so adding an agent
+// needs no code change — just the matching env var.
+//   Vhet   -> LARK_HOOK_AGENT_VHET
+//   Office -> LARK_HOOK_AGENT_OFFICE
+function agentEnvKey(name) {
+  return 'LARK_HOOK_AGENT_' + String(name).toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+}
+
+function hookFor(target) {
+  if (HOOKS[target]) return HOOKS[target];
+  const m = /^agent:(.+)$/.exec(target || '');
+  return m ? process.env[agentEnvKey(m[1])] : null;
+}
+
+function labelFor(target) {
+  if (LABELS[target]) return LABELS[target];
+  const m = /^agent:(.+)$/.exec(target || '');
+  return m ? `${m[1]} (sales agent)` : target;
+}
+
 // ── Auth (same HMAC scheme as /api/data) ─────────────────────────────────────
 function verifyToken(token) {
   if (!token || typeof token !== 'string') return null;
@@ -197,10 +217,13 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'messages required' });
   }
 
-  const unknown = targets.filter(t => !HOOKS[t]);
+  const unknown = targets.filter(t => !hookFor(t));
   if (unknown.length) {
+    const hint = unknown.filter(t => t.startsWith('agent:'))
+      .map(t => agentEnvKey(t.slice(6))).join(', ');
     return res.status(400).json({
-      error: `No webhook configured for: ${unknown.join(', ')}. Set LARK_HOOK_* env vars in Vercel.`
+      error: `No webhook configured for: ${unknown.map(labelFor).join(', ')}.` +
+             (hint ? ` Set ${hint} in Vercel.` : ' Set the LARK_HOOK_* env vars in Vercel.')
     });
   }
 
@@ -234,31 +257,32 @@ module.exports = async function handler(req, res) {
       let text = messages[t];
       if (wantsImage.includes(t) && !imageKey && fallbacks[t]) text = fallbacks[t];
 
+      const hook = hookFor(t);
       if (cards[t]) {
         try {
-          await postHook(HOOKS[t], buildCard(cards[t], withImage ? imageKey : null));
+          await postHook(hook, buildCard(cards[t], withImage ? imageKey : null));
         } catch (e) {
           // Older tenants may reject card schemas — degrade to plain text so the
           // information still arrives rather than nothing at all
           console.error(`card failed for ${t}, falling back:`, e.message);
-          if (text) await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
-          if (withImage) await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
+          if (text) await postHook(hook, { msg_type: 'text', content: { text } });
+          if (withImage) await postHook(hook, { msg_type: 'image', content: { image_key: imageKey } });
         }
       } else if (withImage) {
         try {
-          await postHook(HOOKS[t], buildPost(imageKey, text, titles[t]));
+          await postHook(hook, buildPost(imageKey, text, titles[t]));
         } catch (e) {
           console.error(`post failed for ${t}, falling back:`, e.message);
-          if (text) await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
-          await postHook(HOOKS[t], { msg_type: 'image', content: { image_key: imageKey } });
+          if (text) await postHook(hook, { msg_type: 'text', content: { text } });
+          await postHook(hook, { msg_type: 'image', content: { image_key: imageKey } });
         }
       } else if (text) {
-        await postHook(HOOKS[t], { msg_type: 'text', content: { text } });
+        await postHook(hook, { msg_type: 'text', content: { text } });
       }
-      sent.push(LABELS[t] || t);
+      sent.push(labelFor(t));
     } catch (e) {
       console.error(`Lark send to ${t}:`, e.message);
-      failed.push(`${LABELS[t] || t} (${e.message})`);
+      failed.push(`${labelFor(t)} (${e.message})`);
     }
   }
 
