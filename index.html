@@ -1084,6 +1084,11 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
       </label>
     </div>
 
+    <div id="lark-agent-wrap" style="display:none">
+      <div class="section-label">Sales agent chats</div>
+      <div id="lark-agents" style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px"></div>
+    </div>
+
     <div id="lark-days-wrap" style="display:none">
       <div class="section-label" style="display:flex;align-items:center;justify-content:space-between">
         <span>Days — Drivers &amp; Helpers only</span>
@@ -5978,6 +5983,62 @@ function buildDriversCard(ctx, detail, dates) {
   return { header:{ template:'blue', title:'👷 Driver assignments' }, elements: el };
 }
 
+// ── Sales agent card ──
+// Only that agent's customers, so each chat sees its own book of business
+function buildAgentCard(ctx, agent) {
+  const { days, scheds, cMap } = ctx;
+  const rows = [];
+  for (const s of scheds) {
+    for (const dv of (s.deliveries||[]).filter(x => x.cid)) {
+      if ((cMap[dv.cid]?.salesAgent || '') !== agent) continue;
+      rows.push({ date:s.date, plate:s.plate, driver:s.driver,
+                  name:cMap[dv.cid].name, po:parseInt(dv.po)||0,
+                  pullout:!!dv.pullout, time:cMap[dv.cid]?.time,
+                  pos:normPos(dv) });
+    }
+  }
+  if (!rows.length) return null;
+
+  const el = [ md(`**${mdEsc(larkHeader(days))}**`), hr() ];
+
+  const byDate = {};
+  rows.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+
+  for (const date of Object.keys(byDate).sort()) {
+    const d = new Date(date + 'T00:00:00');
+    el.push(md(`**▸ ${DAY_LBL(d)}**`));
+    for (const r of byDate[date]) {
+      const bits = [`${r.po} PO${r.po!==1?'s':''}`, `\`${mdEsc(r.plate)}\``];
+      if (r.time) bits.push(mdEsc(r.time));
+      if (r.pullout) bits.push('↩ pullout');
+      el.push(md(`${mdEsc(r.name)}\n${bits.join(' · ')}`));
+      const nums = r.pos.map(p => p.no).filter(Boolean);
+      if (nums.length) el.push(md(`PO ${nums.map(n => `\`${mdEsc(n)}\``).join(', ')}`));
+    }
+  }
+
+  const totalPo = rows.reduce((n,r) => n + r.po, 0);
+  const custs   = new Set(rows.map(r => r.name)).size;
+  el.push(hr());
+  el.push(two(`**Customers**\n${custs}`, `**Total POs**\n${totalPo}`));
+  el.push(note(`Deliveries scheduled for ${agent}'s accounts.`));
+
+  return { header:{ template:'purple', title:`🧑‍💼 ${agent} — deliveries this week` }, elements: el };
+}
+
+// Which agents actually have deliveries in the visible week
+function agentsWithWork(ctx) {
+  const { scheds, cMap } = ctx;
+  const found = new Set();
+  for (const s of scheds) {
+    for (const dv of (s.deliveries||[]).filter(x => x.cid)) {
+      const a = cMap[dv.cid]?.salesAgent;
+      if (a) found.add(a);
+    }
+  }
+  return SALES_AGENTS.filter(a => found.has(a));
+}
+
 // ── SM promodizer card ──
 function buildSmCard(ctx, detail) {
   const { days, scheds, cMap } = ctx;
@@ -6166,6 +6227,27 @@ function renderCardPreview(card, withImage) {
   </div>`;
 }
 
+// Agent checkboxes appear only for agents with deliveries in the visible week
+function renderAgentChecks(agents) {
+  const wrap = document.getElementById('lark-agents');
+  const box  = document.getElementById('lark-agent-wrap');
+  if (!wrap || !box) return;
+  if (!agents.length) { box.style.display = 'none'; wrap.innerHTML = ''; return; }
+  box.style.display = '';
+
+  const prev = new Set([...document.querySelectorAll('.lark-agent-cb:checked')].map(cb => cb.value));
+  const first = !document.querySelectorAll('.lark-agent-cb').length;
+
+  wrap.innerHTML = agents.map(a => {
+    const on = first ? true : prev.has(a);
+    return `<label class="pr-check" style="border:1.5px solid var(--border);border-radius:7px">
+      <input type="checkbox" class="lark-agent-cb" value="${esc(a)}" ${on?'checked':''} onchange="larkPreview()">
+      <span><strong>${esc(a)}</strong><br>
+        <span style="font-size:11px;color:var(--muted)">Their customers only · text only</span></span>
+    </label>`;
+  }).join('');
+}
+
 function larkSetDays(on) {
   document.querySelectorAll('.lark-day-cb').forEach(cb => {
     cb.checked = on;
@@ -6216,15 +6298,24 @@ async function larkPreview() {
     drivers:  buildDriversCard(ctx, detail, dayFilter),
     sm:       buildSmCard(ctx, detail)
   };
+
+  // One card per agent that has deliveries this week
+  const agents = agentsWithWork(ctx);
+  renderAgentChecks(agents);
+  agents.forEach(a => { cards['agent:' + a] = buildAgentCard(ctx, a); });
   const built  = {
     delivery: buildDeliveryCaption(ctx),
     drivers:  buildDriversMsg(ctx, detail, dayFilter),
     sm:       buildSmMsg(ctx, detail)
   };
   const fallbacks = { delivery: buildDeliveryMsg(ctx, detail) };
-  const picked = [...document.querySelectorAll('.lark-chat-cb:checked')].map(cb => cb.value);
+  const picked = [
+    ...[...document.querySelectorAll('.lark-chat-cb:checked')].map(cb => cb.value),
+    ...[...document.querySelectorAll('.lark-agent-cb:checked')].map(cb => 'agent:' + cb.value)
+  ];
   const out = picked.map(k => {
-    const chat = LARK_CHATS.find(c=>c.key===k);
+    const agent = k.startsWith('agent:') ? k.slice(6) : null;
+    const chat = agent ? { label: `${agent} (sales agent)` } : LARK_CHATS.find(c=>c.key===k);
     const card = cards[k];
     const img  = LARK_IMAGE_TARGETS.includes(k);
     return `<div style="margin-bottom:12px">
@@ -6232,7 +6323,9 @@ async function larkPreview() {
       ${card
         ? renderCardPreview(card, img)
         : `<div style="font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px">${
-             k === 'sm' ? 'No SM deliveries this week' : 'No assignments on the selected days'
+             agent ? `No deliveries for ${esc(agent)}'s customers`
+             : k === 'sm' ? 'No SM deliveries this week'
+             : 'No assignments on the selected days'
            } — this chat will be skipped.</div>`}
     </div>`;
   }).join('');
