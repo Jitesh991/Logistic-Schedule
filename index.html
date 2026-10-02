@@ -327,6 +327,11 @@ tbody td{padding:10px 14px;border-bottom:1px solid #f0f2f7;vertical-align:middle
 /* Numeric column alignment */
 .num { text-align: right }
 
+.stop-ord{display:inline-flex;align-items:center;justify-content:center;min-width:30px;
+  padding:3px 6px;border-radius:6px;background:var(--accent);color:#fff;
+  font-size:10px;font-weight:800;flex-shrink:0}
+.stop-chip{display:inline-block;font-size:9px;font-weight:800;padding:1px 6px;border-radius:4px}
+
 .po-lines{display:flex;flex-direction:column;gap:4px;padding:6px 0 2px 0}
 .po-line{display:flex;gap:6px;align-items:center}
 .po-idx{width:20px;flex-shrink:0;font-size:10px;font-weight:800;color:var(--muted);text-align:right}
@@ -1795,14 +1800,15 @@ async function renderCalendar() {
         const first    = delivs[0];
         const ci       = (first && cColorIdx[first.cid] !== undefined) ? cColorIdx[first.cid] : 0;
         const drvLast  = sched.driver ? sched.driver.split(' ').pop() : '—';
-        const hasPullout = delivs.some(dv => dv.pullout);
-        const stopLines = delivs.map(dv => {
+        const hasPullout = delivs.some(hasReturn);
+        const stopLines = delivs.map((dv, idx) => {
           const c   = cMap[dv.cid];
           const nm  = c ? c.name : '—';
           const po  = parseInt(dv.po)||0;
+          const st = STOP_TYPES[stopType(dv)];
           return `<div class="dc-stop">
-            <span class="dc-stop-name" title="${esc(nm)}">${esc(nm)}</span>
-            <span class="dc-stop-po">${po} PO${po!==1?'s':''}${dv.pullout?' ↩':''}</span>
+            <span class="dc-stop-name" title="${esc(nm)}">${esc(idx+1)}. ${esc(nm)}</span>
+            <span class="dc-stop-po">${po} PO${po!==1?'s':''}${st.tag?` ${esc(st.tag)}`:''}</span>
           </div>`;
         }).join('');
         const firstCust = first ? cMap[first.cid] : null;
@@ -1917,7 +1923,7 @@ async function populateSchedDropdowns(plate, driver) {
   if (driver) document.getElementById('f-driver-sel').value = driver;
 }
 
-async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
+async function addDeliveryRow(cid='', po='', type='delivery', extra={}) {
   const customers = await apiGet('customers');
   const opts = '<option value="">— Select customer —</option>' +
     customers.map(c => `<option value="${c.id}" ${c.id===cid?'selected':''}>${esc(c.name)}</option>`).join('');
@@ -1931,13 +1937,17 @@ async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
   row.dataset.preparedAt = extra.preparedAt || '';
   row.innerHTML = `
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span class="stop-ord" title="Drop order">1st</span>
       <select style="flex:1;min-width:120px;font-size:12px;padding:5px 8px">${opts}</select>
       <span class="po-label">POs:</span>
       <input type="number" class="po-count" min="0" max="50" value="${esc(String(po))}" placeholder="0" style="width:70px;font-size:12px;padding:5px 8px;text-align:center">
-      <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--text);cursor:pointer;white-space:nowrap;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;transition:all .1s" class="pullout-lbl">
-        <input type="checkbox" class="pullout-cb" style="accent-color:#0891b2;width:13px;height:13px" ${pullout?'checked':''}> ↩ Pullout
-      </label>
-      <button class="btn btn-o btn-xs" onclick="this.closest('.delivery-row').remove()" style="flex-shrink:0">✕</button>
+      <select class="stop-type" style="width:auto;font-size:11px;padding:5px 7px;flex-shrink:0">
+        ${Object.entries(STOP_TYPES).map(([k,v]) =>
+          `<option value="${k}"${k===type?' selected':''}>${v.label}</option>`).join('')}
+      </select>
+      <button class="btn btn-o btn-xs" title="Move earlier" onclick="moveStop(this,-1)" style="flex-shrink:0">↑</button>
+      <button class="btn btn-o btn-xs" title="Move later"   onclick="moveStop(this,1)"  style="flex-shrink:0">↓</button>
+      <button class="btn btn-o btn-xs" onclick="this.closest('.delivery-row').remove();renumberStops()" style="flex-shrink:0">✕</button>
     </div>
     <div class="po-lines"></div>
     <div class="deliv-hint"></div>`;
@@ -1949,7 +1959,8 @@ async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
     syncPoLines(row, e.target.value, getRowPos(row));
   });
 
-  // Pullout checkbox style toggle
+  renumberStops();
+  // Pullout checkbox style toggle (legacy no-op, kept harmless)
   const pcb = row.querySelector('.pullout-cb');
   const plbl = row.querySelector('.pullout-lbl');
   const updatePullout = () => {
@@ -1983,8 +1994,28 @@ async function addDeliveryRow(cid='', po='', pullout=false, extra={}) {
 
 function setDeliveries(arr) {
   document.getElementById('delivery-list').innerHTML = '';
-  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', d.pullout||false, { pos: normPos(d) }));
+  arr.forEach(d => addDeliveryRow(d.cid||'', d.po||'', stopType(d), { pos: normPos(d) }));
+  renumberStops();
 }
+// Row order in the modal is the drop order, so it has to be editable and the
+// badges have to stay in step with it.
+function renumberStops() {
+  const wrap = document.getElementById('delivery-list');
+  if (!wrap) return;
+  [...wrap.querySelectorAll('.delivery-row')].forEach((row, i) => {
+    const b = row.querySelector('.stop-ord');
+    if (b) b.textContent = ordinal(i);
+  });
+}
+
+function moveStop(btn, dir) {
+  const row  = btn.closest('.delivery-row');
+  const wrap = row.parentElement;
+  if (dir < 0 && row.previousElementSibling) wrap.insertBefore(row, row.previousElementSibling);
+  if (dir > 0 && row.nextElementSibling)     wrap.insertBefore(row.nextElementSibling, row);
+  renumberStops();
+}
+
 function getDeliveries() {
   // Scoped to the schedule modal's own list. A document-wide query also picked
   // up the Purchase Orders modal's line-item rows, which have no <select>, and
@@ -2008,7 +2039,9 @@ function getDeliveries() {
       cid:     sel.value,
       po:      parseInt(row.querySelector('.po-count')?.value) || 0,
       pos,
-      pullout: row.querySelector('.pullout-cb')?.checked || false
+      type:    row.querySelector('.stop-type')?.value || 'delivery',
+      // kept in step so older readers of this field still behave
+      pullout: ['both','pullout'].includes(row.querySelector('.stop-type')?.value)
     };
   }).filter(d => d && d.cid);
 }
@@ -2153,9 +2186,10 @@ async function scheduleToBaseRow(s) {
   const delivs = (s.deliveries || []).filter(d => d.cid);
 
   const names = delivs.map(d => cMap[d.cid]?.name || '?');
-  const stops = delivs.map(d => {
+  const stops = delivs.map((d, i) => {
     const po = parseInt(d.po) || 0;
-    return `${cMap[d.cid]?.name || '?'} (${po} PO${po !== 1 ? 's' : ''})${d.pullout ? ' ↩ pullout' : ''}`;
+    const st = STOP_TYPES[stopType(d)];
+    return `${ordinal(i)} drop — ${cMap[d.cid]?.name || '?'} (${po} PO${po !== 1 ? 's' : ''})${st.tag ? ` ${st.tag}` : ''}`;
   }).join('\n');
 
   const permits = [...new Set(delivs.flatMap(d => cMap[d.cid]?.permits || []))];
@@ -2170,7 +2204,7 @@ async function scheduleToBaseRow(s) {
     customers: names.join(', '),
     totalPos:  delivs.reduce((n, d) => n + (parseInt(d.po) || 0), 0),
     firstTime: delivs.length ? (cMap[delivs[0].cid]?.time || '') : '',
-    pullout:   delivs.some(d => d.pullout),
+    pullout:   delivs.some(hasReturn),
     permits:   permits.join(', '),
     notes:     s.notes || ''
   };
@@ -3681,7 +3715,8 @@ async function buildCounterRows() {
           delivered: !!drop?.timeOut,
           receivedBy: drop?.receivingPerson || '',
           deliveredAt: drop?.timeOut || '',
-          pullout: !!d.pullout,
+          pullout: hasReturn(d),
+          stopType: stopType(d),
           // Stage 1 — delivery outcome
           confirmed:   !!ctr.confirmed,
           outcome:     ctr.outcome || '',      // full | partial | returned
@@ -3795,7 +3830,9 @@ function counterRow(r) {
   return `<div class="ctr-row${done?' ctr-done':''}${!r.delivered?' ctr-undelivered':''}">
     <div class="ctr-main">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px">${esc(r.customer)}${r.pullout?' <span class="tag" style="background:#ecfeff;color:#0891b2;font-size:10px">↩ pullout</span>':''}</div>
+        <div style="font-weight:700;font-size:13px">${esc(r.customer)}${
+  r.stopType && r.stopType!=='delivery'
+    ? ` <span class="tag" style="background:${STOP_TYPES[r.stopType].bg};color:${STOP_TYPES[r.stopType].colour};font-size:10px">${esc(STOP_TYPES[r.stopType].tag)}</span>` : ''}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">
           🚛 ${esc(r.plate)} · ${esc(r.driver||'—')}${r.boxes?` · ${esc(String(r.boxes))} boxes`:''}
         </div>
@@ -4046,7 +4083,7 @@ async function renderPrepPage() {
       if (!d.cid) return;
       const pos = normPos(d);
       stops.push({ schedId:s.id, idx, date:s.date, plate:s.plate,
-                   customer: cMap[d.cid]?.name || '?', pullout:d.pullout,
+                   customer: cMap[d.cid]?.name || '?', pullout:hasReturn(d), stopType:stopType(d),
                    pos, done: pos.length > 0 && pos.every(p => p.prepared) });
     });
   }
@@ -4089,7 +4126,8 @@ async function renderPrepPage() {
                 <div style="font-weight:700;font-size:13px${x.done?';color:var(--green)':''}">
                   ${x.done?'✓ ':''}${esc(x.customer)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-top:2px">
-                  🚛 ${esc(x.plate)} · ${readyCount}/${x.pos.length} prepared${x.pullout?' · ↩ pullout':''}
+                  🚛 ${esc(x.plate)} · ${readyCount}/${x.pos.length} prepared${
+  x.stopType && x.stopType!=='delivery' ? ` · ${esc(STOP_TYPES[x.stopType].tag)}` : ''}
                 </div>
               </div>
               ${x.pos.length ? `<button type="button" class="btn btn-o btn-xs"
@@ -4290,6 +4328,7 @@ function slipFromSchedule(s, cMap) {
       customer: cMap[d.cid]?.name || '?',
       address:  cMap[d.cid]?.address || '',
       salesAgent: cMap[d.cid]?.salesAgent || '',
+      type:     stopType(d),
       window:   cMap[d.cid]?.time || '',
       pos: normPos(d),
       qty: d.po || '',
@@ -4522,8 +4561,10 @@ function renderDrop(slipId, d, i, canEdit, slip) {
     <div class="drop-hdr" onclick="toggleDrop('${esc(slipId)}',${i})">
       <div class="drop-no${done?' done':''}">${done?'✓':i+1}</div>
       <div style="flex:1;min-width:0">
-        <div class="drop-name">${esc(d.customer)}</div>
-        <div class="slip-sub">${esc(d.window||'')}${d.qty?` · ${esc(String(d.qty))} PO`:''}${d.timeIn?` · in ${esc(d.timeIn)}`:''}${d.timeOut?` · out ${esc(d.timeOut)}`:''}</div>
+        <div class="drop-name">${esc(d.customer)}
+          ${d.type && d.type!=='delivery'
+            ? `<span class="stop-chip" style="background:${STOP_TYPES[d.type].bg};color:${STOP_TYPES[d.type].colour}">${esc(STOP_TYPES[d.type].tag)}</span>` : ''}</div>
+        <div class="slip-sub">${esc(ordinal(i))} drop${d.window?` · ${esc(d.window)}`:''}${d.qty?` · ${esc(String(d.qty))} PO`:''}${d.timeIn?` · in ${esc(d.timeIn)}`:''}${d.timeOut?` · out ${esc(d.timeOut)}`:''}</div>
       </div>
     </div>
     <div class="drop-body" id="drop-${esc(slipId)}-${i}" style="display:none">
@@ -4532,7 +4573,8 @@ function renderDrop(slipId, d, i, canEdit, slip) {
       <div style="background:var(--bg);border-radius:8px;padding:9px 11px;margin-bottom:10px">
         <div style="font-size:12px;font-weight:700">👤 ${esc(slip?.driver || '—')}${slip?.helper?` &nbsp;·&nbsp; 🧍 ${esc(slip.helper)}`:''}</div>
         <div style="font-size:12px;color:var(--accent);font-weight:800;margin-top:4px">
-          Drop ${i+1} of ${total} — ${esc(d.customer)}
+          ${esc(ordinal(i))} drop of ${total} — ${esc(d.customer)}
+          ${d.type && d.type!=='delivery' ? `· ${esc(STOP_TYPES[d.type].label)}` : ''}
         </div>
         ${d.address ? `<div style="font-size:11px;color:var(--muted);margin-top:4px">📍 ${esc(d.address)}
           <button type="button" class="share-btn" style="margin-left:6px" onclick="navTo('${esc(d.address)}')">Navigate</button></div>` : ''}
@@ -5765,6 +5807,27 @@ async function exportCSV() {
 // ══════════════════════════════════════════════════
 //  SEND TO LARK
 // ══════════════════════════════════════════════════
+// What a stop actually is. Replaces the old pullout checkbox, which could only
+// say "delivery" or "delivery plus pullout".
+const STOP_TYPES = {
+  delivery:  { label:'Delivery',            short:'Delivery',       tag:'',            colour:'#16a34a', bg:'var(--green-lt)' },
+  both:      { label:'Delivery + Pull-out', short:'Delivery + P/O', tag:'↩ + pull-out',colour:'#7c3aed', bg:'#f5f3ff' },
+  pullout:   { label:'Pull-out only',       short:'Pull-out',       tag:'↩ Pull-out',  colour:'#0891b2', bg:'#ecfeff' },
+  pickup:    { label:'Pick-up only',        short:'Pick-up',        tag:'📦 Pick-up',  colour:'#d97706', bg:'#fff7ed' }
+};
+
+// Old records only had pullout:true/false — map them onto the new types
+function stopType(d) {
+  if (d && STOP_TYPES[d.type]) return d.type;
+  return (d && d.pullout) ? 'both' : 'delivery';
+}
+const stopTag = d => STOP_TYPES[stopType(d)].tag;
+// Does this stop involve bringing goods back?
+const hasReturn = d => ['both','pullout','pickup'].includes(stopType(d));
+
+const ORDINALS = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th'];
+const ordinal = i => ORDINALS[i] || `${i+1}th`;
+
 // Driver reporting times offered on a schedule. Add to this list to extend it.
 const REPORT_TIMES = ['6:00 AM', '7:00 AM', '8:00 AM'];
 
@@ -5866,11 +5929,13 @@ function buildDeliveryMsg(ctx, detail) {
 
     if (detail === 'full') {
       for (const s of dayScheds) {
-        const stops = (s.deliveries||[]).filter(dv=>dv.cid).map(dv => {
-          const nm = cMap[dv.cid]?.name || '?';
-          return `${nm} (${parseInt(dv.po)||0})${dv.pullout ? ' ↩' : ''}`;
-        }).join(', ');
-        lines.push(`   ${s.plate} — ${stops || 'no stops'}`);
+        const stops = (s.deliveries||[]).filter(dv=>dv.cid);
+        lines.push(`   ${s.plate}${s.reportTime?` · report ${s.reportTime}`:''}`);
+        if (!stops.length) lines.push('      no stops');
+        stops.forEach((dv,i) => {
+          const st = STOP_TYPES[stopType(dv)];
+          lines.push(`      ${ordinal(i)} drop · ${cMap[dv.cid]?.name || '?'} · ${parseInt(dv.po)||0} PO${st.tag?` · ${st.tag}`:''}`);
+        });
       }
     } else if (dayScheds.length) {
       const po = dayScheds.reduce((n,s)=>n+(s.deliveries||[]).reduce((a,d)=>a+(parseInt(d.po)||0),0),0);
@@ -5959,16 +6024,18 @@ function buildDriversCard(ctx, detail, dates) {
 
       const delivs = (s.deliveries||[]).filter(x=>x.cid);
       if (detail === 'full') {
-        const lines = delivs.map(dv => {
-          const c = cMap[dv.cid];
-          const t = c?.time ? `\`${mdEsc(c.time)}\` ` : '';
-          return `${t}${mdEsc(c?.name || '?')} · ${parseInt(dv.po)||0} PO${dv.pullout ? ' ↩ pullout' : ''}`;
+        const lines = delivs.map((dv,i) => {
+          const c  = cMap[dv.cid];
+          const t  = c?.time ? ` \`${mdEsc(c.time)}\`` : '';
+          const st = STOP_TYPES[stopType(dv)];
+          return `**${ordinal(i)} drop** · ${mdEsc(c?.name || '?')}${t}\n` +
+                 `${parseInt(dv.po)||0} PO${st.tag ? ` · ${st.tag}` : ''}`;
         });
         if (lines.length) el.push(md(lines.join('\n')));
         const permits = [...new Set(delivs.flatMap(dv => cMap[dv.cid]?.permits || []))];
         if (permits.length) el.push(md(`📋 **Bring** · ${mdEsc(permits.join(', '))}`));
       } else if (delivs.length) {
-        el.push(md(delivs.map(dv => mdEsc(cMap[dv.cid]?.name || '?')).join(' → ')));
+        el.push(md(delivs.map((dv,i) => `${ordinal(i)} ${mdEsc(cMap[dv.cid]?.name || '?')}`).join(' → ')));
       }
       if (s.notes) el.push(md(`📝 ${mdEsc(s.notes)}`));
     }
@@ -5993,7 +6060,7 @@ function buildAgentCard(ctx, agent) {
       if ((cMap[dv.cid]?.salesAgent || '') !== agent) continue;
       rows.push({ date:s.date, plate:s.plate, driver:s.driver,
                   name:cMap[dv.cid].name, po:parseInt(dv.po)||0,
-                  pullout:!!dv.pullout, time:cMap[dv.cid]?.time,
+                  type:stopType(dv), time:cMap[dv.cid]?.time,
                   pos:normPos(dv) });
     }
   }
@@ -6010,7 +6077,7 @@ function buildAgentCard(ctx, agent) {
     for (const r of byDate[date]) {
       const bits = [`${r.po} PO${r.po!==1?'s':''}`, `\`${mdEsc(r.plate)}\``];
       if (r.time) bits.push(mdEsc(r.time));
-      if (r.pullout) bits.push('↩ pullout');
+      if (STOP_TYPES[r.type]?.tag) bits.push(STOP_TYPES[r.type].tag);
       el.push(md(`${mdEsc(r.name)}\n${bits.join(' · ')}`));
       const nums = r.pos.map(p => p.no).filter(Boolean);
       if (nums.length) el.push(md(`PO ${nums.map(n => `\`${mdEsc(n)}\``).join(', ')}`));
@@ -6048,7 +6115,7 @@ function buildSmCard(ctx, detail) {
   for (const s of scheds) {
     for (const dv of (s.deliveries||[]).filter(x => x.cid && isSM(x.cid))) {
       rows.push({ date:s.date, plate:s.plate, name:cMap[dv.cid].name,
-                  po:parseInt(dv.po)||0, pullout:!!dv.pullout, time:cMap[dv.cid]?.time });
+                  po:parseInt(dv.po)||0, type:stopType(dv), time:cMap[dv.cid]?.time });
     }
   }
   if (!rows.length) return null;
@@ -6058,7 +6125,7 @@ function buildSmCard(ctx, detail) {
     const d = new Date(r.date + 'T00:00:00');
     const bits = [`${r.po} PO${r.po!==1?'s':''}`, `\`${mdEsc(r.plate)}\``];
     if (detail === 'full' && r.time) bits.push(mdEsc(r.time));
-    if (r.pullout) bits.push('↩ pullout');
+    if (STOP_TYPES[r.type]?.tag) bits.push(STOP_TYPES[r.type].tag);
     el.push(md(`**${DAY_LBL(d)} · ${mdEsc(r.name)}**\n${bits.join(' · ')}`));
   }
   el.push(hr());
@@ -6136,11 +6203,12 @@ function buildDriversMsg(ctx, detail, dates) {
       if (helpers.length) lines.push(`      Helpers: ${helpers.join(', ')}`);
 
       if (detail === 'full') {
-        for (const dv of (s.deliveries||[]).filter(x=>x.cid)) {
-          const c = cMap[dv.cid];
-          const t = c?.time ? `${c.time} ` : '';
-          lines.push(`      ${t}${c?.name || '?'} (${parseInt(dv.po)||0} PO)${dv.pullout ? ' ↩ pullout' : ''}`);
-        }
+        (s.deliveries||[]).filter(x=>x.cid).forEach((dv,i) => {
+          const c  = cMap[dv.cid];
+          const t  = c?.time ? `${c.time} ` : '';
+          const st = STOP_TYPES[stopType(dv)];
+          lines.push(`      ${ordinal(i)} drop · ${t}${c?.name || '?'} (${parseInt(dv.po)||0} PO)${st.tag ? ` ${st.tag}` : ''}`);
+        });
         const permits = [...new Set((s.deliveries||[]).flatMap(dv => cMap[dv.cid]?.permits || []))];
         if (permits.length) lines.push(`      📋 Bring: ${permits.join(', ')}`);
       } else {
@@ -6171,7 +6239,7 @@ function buildSmMsg(ctx, detail) {
   for (const s of scheds) {
     for (const dv of (s.deliveries||[]).filter(x => x.cid && isSM(x.cid))) {
       rows.push({ date:s.date, plate:s.plate, name:cMap[dv.cid].name,
-                  po:parseInt(dv.po)||0, pullout:!!dv.pullout, time:cMap[dv.cid]?.time });
+                  po:parseInt(dv.po)||0, type:stopType(dv), time:cMap[dv.cid]?.time });
     }
   }
   if (!rows.length) return null;   // nothing to say — skip this chat
@@ -6181,7 +6249,8 @@ function buildSmMsg(ctx, detail) {
     const d = new Date(r.date + 'T00:00:00');
     const t = (detail === 'full' && r.time) ? ` · ${r.time}` : '';
     lines.push(`▸ ${DAY_LBL(d)} — ${r.name}`);
-    lines.push(`   ${r.po} PO${r.po!==1?'s':''} · ${r.plate}${t}${r.pullout ? ' · includes pullout ↩' : ''}`);
+    lines.push(`   ${r.po} PO${r.po!==1?'s':''} · ${r.plate}${t}${
+      STOP_TYPES[r.type]?.tag ? ` · ${STOP_TYPES[r.type].tag}` : ''}`);
   }
   return lines.join('\n').trim();
 }
@@ -6658,7 +6727,7 @@ async function exportPNG(opts = {}) {
             const delivs = (s.deliveries||[]).filter(dv=>dv.cid);
             for (let di=0;di<delivs.length&&di<maxRows;di++) {
               const dv=delivs[di], c=cMap[dv.cid];
-              const nm=(c?c.name:'—').toUpperCase();
+              const nm=(di+1)+'. '+(c?c.name:'—').toUpperCase();
               const po=parseInt(dv.po)||0;
               const ry=y+di*ROW_H;
               // Row divider
@@ -6670,7 +6739,7 @@ async function exportPNG(opts = {}) {
               ctx.fillStyle=isSM?'#e53e30':'#1a1a1a';
               ctx.font=(isSM?'bold ':'')+Math.max(10,Math.min(13,ROW_H-8))+'px "Segoe UI",Arial,sans-serif';
               ctx.textBaseline='middle';
-              const poTxt='('+po+')'+(dv.pullout?' ↩':'');
+              const poTxt='('+po+')'+(STOP_TYPES[stopType(dv)].tag?' '+STOP_TYPES[stopType(dv)].tag:'');
               const poW=ctx.measureText(poTxt).width+10;
               ctx.textAlign='left';
               ctx.fillText(clip(nm,DAY_W-poW-14), dx+6, ry+ROW_H/2);
